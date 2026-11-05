@@ -79,5 +79,12 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Photos are fetched at the size they're shown, kept in a 200 MB disk cache, and fade in.
 - Infinite scroll starts loading the next page well before you reach the bottom.
 
+## Outlet tab, discounts, prefetch
+- **Outlet tab** (between Search and Lists): *For you* finds Outlet and like-new deals that match your interests, scored by the same taste model as the feed; *Outlet* (overstock, new condition), *Like new* (open-box/used resold by Amazon) and *Deals* (today's deals) are ranked with "Biggest discount" by default. Search within any section, sort with the chips, long-press or tap the heart to watch, scroll forever. The section addresses live in `config/selectors.json` (`urls.outlet`, `urls.resale`, `urls.deals`), so if one stops working it can be fixed from the GitHub app.
+- **Discounts:** the reader picks up the struck-through List/Typical/Was price and "% off" badges on search results, best-seller tiles and product pages. Cards show the % off and the old price; product pages say "Save X% ($Y)".
+- **Discount ranking:** a sixth ranking signal, *Discount* (50%+ off scores full), a *Biggest discount* preset, and an *On sale* chip on every search that keeps only items at least 5% off. "Why this rank" and "Adjust" include it.
+- **Prefetch:** after a results page shows, the background browser quietly reads the next page and the top 3 products, so scrolling and tapping usually open instantly from the cache.
+- Rules file is now version 3.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

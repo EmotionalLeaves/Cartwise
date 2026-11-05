@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "updated": "2026-11-05",
   "notes": "Page-reading rules for Cartwise. Each field is a list of CSS selectors tried in order. Bump 'version' when you edit this file so phones pick it up over the bundled copy.",
   "waitMs": 6000,
@@ -24,7 +24,11 @@
     "bestsellers": "https://www.amazon.com/gp/bestsellers/{slug}",
     "keepa": "https://keepa.com/#!product/1-{asin}",
     "camel": "https://camelcamelcamel.com/product/{asin}",
-    "mobileCart": "https://www.amazon.com/gp/aw/c"
+    "mobileCart": "https://www.amazon.com/gp/aw/c",
+    "outlet": "https://www.amazon.com/s?k={q}&rh=n%3A517808&page={page}",
+    "resale": "https://www.amazon.com/s?k={q}&rh=n%3A10158976011&page={page}",
+    "deals": "https://www.amazon.com/s?k={q}&rh=p_n_deal_type%3A23566064011&page={page}",
+    "outletWeb": "https://www.amazon.com/outlet"
   },
   "common": {
     "cartCount": [
@@ -100,6 +104,11 @@
     "next": [
       ".s-pagination-next:not(.s-pagination-disabled)",
       "a.s-pagination-next"
+    ],
+    "listPrice": [
+      ".a-price.a-text-price[data-a-strike='true'] .a-offscreen",
+      ".a-price.a-text-price .a-offscreen",
+      "[data-cy='secondary-offer-recipe'] .a-text-price .a-offscreen"
     ]
   },
   "product": {
@@ -357,5 +366,6 @@
       ".sc-list-item[data-asin]"
     ],
     "css": "[id^='sc-rec'],#rhf,#navFooter,.sc-sss,#sc-new-upsell,#sw-gtc,#ewc-content,.a-carousel-container,#nav-progressive-subnav,.nav-banner,#sc-buy-box-gift-checkbox,[cel_widget_id*='sims'],[data-csa-c-slot-id*='rec']{display:none !important}.a-button,.a-button-input,.a-button-text{min-height:44px !important}.a-button-text{font-size:16px !important;line-height:44px !important}body{padding-bottom:104px !important}"
-  }
+  },
+  "urls_notes": "outlet/resale/deals are search pages limited to Amazon's Outlet, Resale (like-new, formerly Warehouse) and Today's Deals. If one stops working, open it on Amazon, copy the rh=... part of the address and paste it here."
 }

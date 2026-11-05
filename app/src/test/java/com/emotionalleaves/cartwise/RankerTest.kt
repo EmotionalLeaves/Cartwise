@@ -50,8 +50,22 @@ class RankerTest {
     }
 
     @Test fun weightsAreNormalized() {
-        val r = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, custom = doubleArrayOf(2.0, 2.0, 2.0, 2.0, 2.0)))
+        val r = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, custom = doubleArrayOf(2.0, 2.0, 2.0, 2.0, 2.0, 2.0)))
         assertEquals(1.0, r.first().weights.sum(), 1e-9)
         r.forEach { assertTrue(it.parts.all { p -> p in 0.0..1.0 }) }
+    }
+
+    @Test fun discountPresetAndSaleFilter() {
+        val sale = c.copy(asin = "SALE", title = "Sale usb cable", brand = "Saley", image = "s", price = 9.0, listPrice = 18.0)
+        val items = page + sale
+        assertEquals(50, sale.discountPct)
+        assertEquals("SALE", Ranker.rank(items, Ranker.Ctx("usb c cable", Preset.DISCOUNT)).first().item.asin)
+        val onlySale = Ranker.rank(items, Ranker.Ctx("usb c cable", Preset.BEST, saleOnly = true))
+        assertEquals(listOf("SALE"), onlySale.map { it.item.asin })
+    }
+
+    @Test fun shortCustomWeightsArePadded() {
+        val r = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, custom = doubleArrayOf(1.0, 1.0, 1.0, 1.0, 1.0)))
+        assertEquals(6, r.first().weights.size)
     }
 }

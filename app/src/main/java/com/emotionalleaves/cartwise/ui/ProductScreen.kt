@@ -234,7 +234,15 @@ internal fun ProductBody(
                     if (p.brand.isNotBlank()) Text(p.brand, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text(p.title, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(10.dp))
-                    PriceLine(p.price, p.priceText, p.unitPrice, p.listPriceText, big = true)
+                    PriceLine(p.price, p.priceText, p.unitPrice, if (p.discountPct > 0) Fmt.money(p.listPrice) else p.listPriceText, big = true)
+                    if (p.discountPct > 0) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Save ${p.discountPct}% (" + Fmt.money((p.listPrice ?: 0.0) - (p.price ?: 0.0)) + ")",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
                     if (p.availability.isNotBlank() && !p.availability.contains("In Stock", true)) {
                         Text(p.availability, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }

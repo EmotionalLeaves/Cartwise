@@ -125,7 +125,7 @@
       var a = links[i]; var asin = asinOf(at(a, 'href')); if (!asin) continue;
       var card = cardFor(cfg, a, root);
       var t = map[asin];
-      if (!t) { t = map[asin] = { asin: asin, url: abs('/dp/' + asin), title: '', image: '', price: '', rating: '', reviews: '', unitPrice: '' }; order.push(asin); }
+      if (!t) { t = map[asin] = { asin: asin, url: abs('/dp/' + asin), title: '', image: '', price: '', listPrice: '', pctOff: 0, rating: '', reviews: '', unitPrice: '' }; order.push(asin); }
       var im = a.querySelector('img') || card.querySelector('img');
       if (!t.image) t.image = imgOf(im, card);
       var ct = txt(card);
@@ -137,7 +137,20 @@
         if (tt && txt(tt).length > cand.length && txt(tt).length < 300 && !/^\$/.test(txt(tt))) cand = txt(tt);
         t.title = cand;
       }
-      if (!t.price) t.price = qt(card, '.a-price .a-offscreen') || priceIn(ct);
+      if (!t.price) {
+        var ps = qall(card, ['.a-price .a-offscreen', '.a-price', '[class*="price"]']).map(function (e) { return priceIn(txt(e)); }).filter(Boolean);
+        if (!ps.length) { var all = (ct.match(/\$\s?\d[\d,]*(?:\.\d{2})?/g) || []); ps = all; }
+        if (ps.length) {
+          var nums = ps.map(function (x) { return parseFloat(x.replace(/[$,\s]/g, '')); }).filter(function (n) { return !isNaN(n) && n > 0; });
+          if (nums.length) {
+            var lo = Math.min.apply(null, nums), hi = Math.max.apply(null, nums);
+            t.price = '$' + lo.toFixed(2);
+            if (hi > lo * 1.02 && hi < lo * 20) t.listPrice = '$' + hi.toFixed(2);
+          }
+        }
+        var po = /(\d{1,2})%\s*off/i.exec(ct) || /-\s?(\d{1,2})%/.exec(ct);
+        if (po) t.pctOff = parseInt(po[1], 10);
+      }
       if (!t.unitPrice) t.unitPrice = unitIn(ct);
       if (!t.rating) {
         var r = card.querySelector('[aria-label*="out of 5"], [title*="out of 5"], .a-icon-alt');
@@ -176,12 +189,17 @@
         }
       }
       var rv = q(c, S.reviews);
+      var listPrice = qt(c, S.listPrice);
+      if (!listPrice) { var lm = /(?:List|Typical|Was)(?: Price)?:?\s*(\$\s?\d[\d,]*(?:\.\d{2})?)/i.exec(ct); if (lm) listPrice = lm[1]; }
+      var pm = /(\d{1,2})%\s*off/i.exec(ct) || /-\s?(\d{1,2})%/.exec(ct);
       out.push({
         asin: asin,
         title: title,
         url: a ? abs(at(a, 'href')) : abs('/dp/' + asin),
         price: qt(c, S.price) || priceIn(ct),
         unitPrice: unitIn(ct),
+        listPrice: listPrice,
+        pctOff: pm ? parseInt(pm[1], 10) : 0,
         rating: ratingOf(c, S.rating),
         reviews: rv ? (at(rv, 'aria-label') || txt(rv)) : '',
         image: imgOf(im, c),
@@ -309,7 +327,8 @@
       title: title,
       brand: qt(document, P.brand),
       price: price,
-      listPrice: qt(document, P.listPrice),
+      listPrice: qt(document, P.listPrice) || (function () { var m = /(?:List|Typical|Was)(?: Price)?:?\s*(\$\s?\d[\d,]*(?:\.\d{2})?)/i.exec(pbt); return m ? m[1] : ''; })(),
+      pctOff: (function () { var m = /-\s?(\d{1,2})%/.exec(pbt) || /(\d{1,2})%\s*off/i.exec(pbt); return m ? parseInt(m[1], 10) : 0; })(),
       unitPrice: unitIn(pbt),
       images: imgs.slice(0, 8),
       rating: rating,

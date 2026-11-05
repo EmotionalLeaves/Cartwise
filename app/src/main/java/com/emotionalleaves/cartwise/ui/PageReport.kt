@@ -26,7 +26,7 @@ object PageReport {
     }
 
     suspend fun build(kind: String, url: String, h: Health?): Out {
-        val missing = h?.fields?.filter { it.value < 0.6 }?.keys?.map { hintName(kind, it) }?.distinct()
+        val missing = h?.fields?.filter { it.value < 0.6 && it.key != "list price" && it.key != "unit price" }?.keys?.map { hintName(kind, it) }?.distinct()
             ?: listOf("title", "price", "category")
         val arg = org.json.JSONObject().put("missing", org.json.JSONArray(if (missing.isEmpty() && h?.count == 0) listOf("items") else missing)).put("max", MAX).toString()
         return when (val r = Graph.engine.snapshot(url, kind, arg)) {

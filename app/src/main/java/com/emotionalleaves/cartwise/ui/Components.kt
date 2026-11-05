@@ -182,6 +182,11 @@ fun Pill(text: String, container: Color = MaterialTheme.colorScheme.surfaceVaria
 }
 
 @Composable
+fun DiscountPill(pct: Int) {
+    Pill("−$pct%", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+}
+
+@Composable
 fun SellerBadge(score: Double) {
     when {
         score >= 1.0 -> Pill("Sold by Amazon", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)

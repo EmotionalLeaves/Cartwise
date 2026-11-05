@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
@@ -50,6 +51,7 @@ import com.emotionalleaves.cartwise.engine.ShopRepo
 import com.emotionalleaves.cartwise.rank.Preset
 import com.emotionalleaves.cartwise.rank.Ranked
 import com.emotionalleaves.cartwise.rank.Ranker
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -165,6 +167,8 @@ class ResultsVm(val query: String) : ViewModel() {
         private set
     var loadingMore by mutableStateOf(false)
         private set
+    var saleOnly by mutableStateOf(false)
+        private set
 
     /** Each Amazon page is ranked on its own and appended, so scrolling never reshuffles what you've seen. */
     private val pages = ArrayList<List<Listing>>()
@@ -220,6 +224,7 @@ class ResultsVm(val query: String) : ViewModel() {
                 pages.add(r.v.items)
                 rerank()
                 state = St.Ready
+                prefetch(page + 1, ranked.take(3).map { it.item.asin })
             }
             is Load.Fail -> state = when (r.reason) {
                 Reason.CAPTCHA, Reason.EMPTY, Reason.ERROR, Reason.SIGNED_OUT -> St.Fallback(r.url ?: pageUrl)
@@ -248,6 +253,7 @@ class ResultsVm(val query: String) : ViewModel() {
                         page++
                         pages.add(fresh)
                         rerank()
+                        prefetch(page + 1, emptyList())
                     }
                 }
                 is Load.Fail -> moreError = when (r.reason) {
@@ -260,9 +266,28 @@ class ResultsVm(val query: String) : ViewModel() {
         }
     }
 
+    /**
+     * Speed: quietly reads the next results page and the top few products in the background
+     * browser, so scrolling and tapping usually hit the cache. Stops if you leave the screen.
+     */
+    private fun prefetch(nextPage: Int, asins: List<String>) {
+        viewModelScope.launch {
+            if (nextPage <= 40) Graph.bgShop.search(query, nextPage)
+            for (a in asins) {
+                delay(1_200)
+                Graph.bgShop.product(a)
+            }
+        }
+    }
+
     fun choose(p: Preset) {
         preset = p
         custom = null
+        rerank()
+    }
+
+    fun setSaleOnly(v: Boolean) {
+        saleOnly = v
         rerank()
     }
 
@@ -289,7 +314,7 @@ class ResultsVm(val query: String) : ViewModel() {
     }
 
     private fun rerank() {
-        val ctx = Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize)
+        val ctx = Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize, saleOnly)
         val out = ArrayList<Ranked>()
         val shown = HashSet<String>()
         for (pg in pages) {
@@ -322,7 +347,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                     AmazonPage(s.url, PageMode.RAW, Modifier.weight(1f))
                 }
                 ResultsVm.St.Ready -> Column(Modifier.fillMaxSize()) {
-                    PresetRow(vm.preset, vm.custom != null, onPick = { vm.choose(it) }, onAdjust = { adjust = true })
+                    PresetRow(vm.preset, vm.custom != null, onPick = { vm.choose(it) }, onAdjust = { adjust = true }, saleOnly = vm.saleOnly, onSaleOnly = { vm.setSaleOnly(it) })
                     val list = rememberLazyListState()
                     LaunchedEffect(list) {
                         snapshotFlow {
@@ -408,15 +433,30 @@ fun ResultsScreen(nav: NavController, query: String) {
 }
 
 @Composable
-private fun PresetRow(current: Preset, custom: Boolean, onPick: (Preset) -> Unit, onAdjust: () -> Unit) {
+internal fun PresetRow(
+    current: Preset,
+    custom: Boolean,
+    onPick: (Preset) -> Unit,
+    onAdjust: (() -> Unit)?,
+    saleOnly: Boolean? = null,
+    onSaleOnly: (Boolean) -> Unit = {},
+) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (saleOnly != null) {
+            FilterChip(
+                selected = saleOnly,
+                onClick = { onSaleOnly(!saleOnly) },
+                label = { Text("On sale") },
+                leadingIcon = if (saleOnly) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
+            )
+        }
         Preset.entries.forEach { p ->
             FilterChip(selected = !custom && p == current, onClick = { onPick(p) }, label = { Text(p.label) })
         }
-        FilterChip(selected = custom, onClick = onAdjust, label = { Text(if (custom) "Custom" else "Adjust") })
+        if (onAdjust != null) FilterChip(selected = custom, onClick = onAdjust, label = { Text(if (custom) "Custom" else "Adjust") })
     }
 }
 
@@ -479,7 +519,11 @@ internal fun ResultCard(
                 }
                 Text(l.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                PriceLine(l.price, l.priceText, l.unitPrice)
+                PriceLine(l.price, l.priceText, l.unitPrice, if (l.discountPct > 0) Fmt.money(l.listPrice) else "")
+                if (l.discountPct > 0) {
+                    Spacer(Modifier.height(2.dp))
+                    DiscountPill(l.discountPct)
+                }
                 Spacer(Modifier.height(2.dp))
                 RatingLine(if (l.rating != null) r.bayes else null, l.reviews)
                 if (l.deliveryText.isNotBlank() || l.deliveryDays != null) {
@@ -540,6 +584,7 @@ internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit,
             else -> "Third-party seller"
         },
         "Share of your search words in the title",
+        if (r.item.discountPct > 0) "${r.item.discountPct}% off ${Fmt.money(r.item.listPrice)} (50%+ off scores full)" else "No discount shown",
     )
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
         Text("Why this rank", style = MaterialTheme.typography.titleLarge)
@@ -549,7 +594,7 @@ internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
-        for (i in 0 until 5) {
+        for (i in 0 until minOf(Preset.N, r.parts.size)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(Preset.SIGNALS[i], style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(76.dp))
                 LinearProgressIndicator(progress = { r.parts[i].toFloat() }, modifier = Modifier.weight(1f).height(6.dp))
@@ -575,7 +620,7 @@ internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit,
 
 @Composable
 private fun AdjustSheet(start: DoubleArray, onApply: (DoubleArray) -> Unit) {
-    val w = remember { mutableStateListOf(*start.toTypedArray()) }
+    val w = remember { mutableStateListOf(*DoubleArray(Preset.N) { if (it < start.size) start[it] else 0.0 }.toTypedArray()) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
         Text("Adjust ranking", style = MaterialTheme.typography.titleLarge)
         Text(
@@ -584,7 +629,7 @@ private fun AdjustSheet(start: DoubleArray, onApply: (DoubleArray) -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
-        for (i in 0 until 5) {
+        for (i in 0 until Preset.N) {
             Text(Preset.SIGNALS[i], style = MaterialTheme.typography.labelLarge)
             Slider(value = w[i].toFloat(), onValueChange = { w[i] = it.toDouble() }, valueRange = 0f..1f)
         }

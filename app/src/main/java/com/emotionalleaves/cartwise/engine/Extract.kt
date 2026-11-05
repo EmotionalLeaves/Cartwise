@@ -44,13 +44,18 @@ object Extract {
         val delivery = o.optString("delivery").replace(Regex("\\s+"), " ").trim()
         val rawBrand = Parse.cleanBrand(o.optString("brand"))
         val brand = if (rawBrand.isNotBlank() && rawBrand.length < 40 && rawBrand != title) rawBrand else guessBrand(title)
+        val price = Parse.price(priceText)
+        val pctOff = o.optInt("pctOff", 0)
+        val listPrice = Parse.price(o.optString("listPrice"))
+            ?: if (pctOff in 1..95 && price != null) Math.round(price / (1 - pctOff / 100.0) * 100) / 100.0 else null
         return Listing(
             asin = asin,
             title = title,
             url = o.optString("url").ifBlank { "https://www.amazon.com/dp/$asin" },
-            price = Parse.price(priceText),
+            price = price,
             priceText = priceText,
             unitPrice = Parse.unitPrice(o.optString("unitPrice")),
+            listPrice = listPrice,
             rating = Parse.rating(o.optString("rating")),
             reviews = Parse.reviews(o.optString("reviews")),
             image = cleanImage(o.optString("image")),
@@ -75,6 +80,7 @@ object Extract {
             "image" to fill(items) { it.image.isNotBlank() },
             "delivery" to fill(items) { it.deliveryText.isNotBlank() },
             "unit price" to fill(items) { it.unitPrice != null },
+            "list price" to fill(items) { it.listPrice != null },
         )
         val ok = items.size >= 2 && (fields["title"] ?: 0.0) >= 0.6
         val h = Health("search", System.currentTimeMillis(), items.size, fields, ok, url)
@@ -140,6 +146,7 @@ object Extract {
             canAddToCart = j.optBoolean("canAddToCart"),
             cartCount = Parse.int(j.optString("cartCount")),
             url = url,
+            pctOff = j.optInt("pctOff", 0),
         )
         val fields = mapOf(
             "title" to if (p.title.isNotBlank()) 1.0 else 0.0,

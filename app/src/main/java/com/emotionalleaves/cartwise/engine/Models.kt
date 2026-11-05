@@ -20,9 +20,14 @@ data class Listing(
     val prime: Boolean = false,
     val sponsored: Boolean = false,
     val brand: String = "",
+    /** The "List", "Typical" or "Was" price Amazon shows struck through, when there is one. */
+    val listPrice: Double? = null,
 ) {
     /** Seller score for list views: Prime usually means sold or fulfilled by Amazon. */
     val seller: Double get() = if (prime) 0.8 else 0.5
+
+    /** Whole percent off the list price, 0 when there's no real discount. */
+    val discountPct: Int get() = Parse.discountPct(price, listPrice)
 }
 
 data class SearchPage(val items: List<Listing>, val hasNext: Boolean, val health: Health)
@@ -70,14 +75,19 @@ data class Product(
     val canAddToCart: Boolean,
     val cartCount: Int?,
     val url: String,
+    val pctOff: Int = 0,
 ) {
+    val listPrice: Double?
+        get() = Parse.price(listPriceText) ?: if (pctOff in 1..95 && price != null) price / (1 - pctOff / 100.0) else null
+    val discountPct: Int get() = Parse.discountPct(price, listPrice)
+
     val seller: Double get() = Parse.sellerScore(soldBy, shipsFrom)
     val category: String get() = breadcrumbs.joinToString(" › ")
 
     fun toListing(): Listing = Listing(
         asin = asin, title = title, url = url, price = price, priceText = priceText,
         unitPrice = unitPrice, rating = rating, reviews = reviews, image = images.firstOrNull() ?: "",
-        deliveryText = deliveryText, deliveryDays = deliveryDays, prime = seller >= 0.8, brand = brand,
+        deliveryText = deliveryText, deliveryDays = deliveryDays, prime = seller >= 0.8, brand = brand, listPrice = listPrice,
     )
 }
 

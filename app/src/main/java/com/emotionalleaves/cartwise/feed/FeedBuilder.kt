@@ -437,6 +437,24 @@ class FeedBuilder(
         return More(cards, wildcard)
     }
 
+    /** A listing that cleared your taste bar, with its feed score and the reason to show. */
+    data class Picked(val listing: Listing, val score: Double, val fit: Double, val reason: String)
+
+    /** Interests to browse other sections by (e.g. the Outlet's "For you"), strongest first. */
+    suspend fun interests(): List<TasteModel.ClusterVec> = freshProfile().clusters.filter { !it.e.muted }
+
+    /** Scores listings from any page against your taste model, keeping only what clears the Fit bar. */
+    suspend fun pick(items: List<Listing>, reason: String): List<Picked> {
+        val p = freshProfile()
+        val seen = dao.seenAsins().toSet()
+        return items.asSequence()
+            .filter { !it.sponsored && it.asin.isNotBlank() && it.title.isNotBlank() }
+            .distinctBy { it.asin }
+            .toList()
+            .mapNotNull { l -> scoreOne(p, Cand(l, Shelf.NEW_IN, reason, 0.2), seen)?.let { Picked(l, it.score, it.fit, it.reason) } }
+            .sortedByDescending { it.score }
+    }
+
     // ---- Feedback from the feed cards ----
 
     suspend fun impression(asin: String) {

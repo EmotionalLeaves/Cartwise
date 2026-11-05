@@ -39,6 +39,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val TABS = listOf(
     Tab("foryou", "For You", Icons.Filled.Home),
     Tab("search", "Search", Icons.Filled.Search),
+    Tab("outlet", "Outlet", OutletIcon),
     Tab("lists", "Lists", Icons.Filled.Favorite),
     Tab("cart", "Cart", Icons.Filled.ShoppingCart),
     Tab("account", "Account", Icons.Filled.Person),
@@ -80,7 +81,7 @@ fun AppNav() {
                                 }
                             },
                             icon = { Icon(t.icon, contentDescription = t.label) },
-                            label = { Text(t.label) },
+                            label = { Text(t.label, maxLines = 1, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
                         )
                     }
                 }
@@ -94,6 +95,7 @@ fun AppNav() {
         ) {
             composable("foryou") { ForYouScreen(nav) }
             composable("search") { SearchScreen(nav) }
+            composable("outlet") { OutletScreen(nav) }
             composable("lists") { ListsScreen(nav) }
             composable("cart") { CartScreen(nav) }
             composable("account") { AccountScreen(nav) }

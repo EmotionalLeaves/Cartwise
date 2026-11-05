@@ -157,6 +157,12 @@ class ScreensRenderTest {
         waitText("Cart")
     }
 
+    @Test fun outletTab() {
+        show { OutletScreen(it) }
+        waitText("Like new")
+        waitText("Search for you deals")
+    }
+
     @Test fun rawPageBanner() {
         show { WebRoute(it, "https://www.amazon.com/dp/B0AAAAAAA1", "Simplified view unavailable") }
         waitText("Simplified view unavailable")

@@ -4,17 +4,19 @@ import com.emotionalleaves.cartwise.engine.Listing
 import com.emotionalleaves.cartwise.engine.Parse
 import java.util.Locale
 
-/** Weight presets: quality, value, delivery, seller, match. */
+/** Weight presets: quality, value, delivery, seller, match, discount. */
 enum class Preset(val label: String, val w: DoubleArray, val cheapest: Boolean = false) {
-    BEST("Best overall", doubleArrayOf(0.30, 0.20, 0.15, 0.10, 0.25)),
-    VALUE("Best value", doubleArrayOf(0.20, 0.45, 0.10, 0.05, 0.20)),
-    FASTEST("Fastest", doubleArrayOf(0.20, 0.10, 0.45, 0.05, 0.20)),
-    TRUSTED("Most trusted", doubleArrayOf(0.45, 0.05, 0.05, 0.30, 0.15)),
-    CHEAPEST("Cheapest", doubleArrayOf(0.10, 0.60, 0.05, 0.05, 0.20), cheapest = true);
+    BEST("Best overall", doubleArrayOf(0.28, 0.18, 0.15, 0.10, 0.24, 0.05)),
+    DISCOUNT("Biggest discount", doubleArrayOf(0.20, 0.10, 0.05, 0.05, 0.15, 0.45)),
+    VALUE("Best value", doubleArrayOf(0.20, 0.40, 0.10, 0.05, 0.20, 0.05)),
+    FASTEST("Fastest", doubleArrayOf(0.20, 0.10, 0.45, 0.05, 0.20, 0.00)),
+    TRUSTED("Most trusted", doubleArrayOf(0.45, 0.05, 0.05, 0.30, 0.15, 0.00)),
+    CHEAPEST("Cheapest", doubleArrayOf(0.10, 0.60, 0.05, 0.05, 0.20, 0.00), cheapest = true);
 
     companion object {
         fun from(name: String?): Preset = entries.firstOrNull { it.name == name } ?: BEST
-        val SIGNALS = listOf("Quality", "Value", "Delivery", "Seller", "Match")
+        val SIGNALS = listOf("Quality", "Value", "Delivery", "Seller", "Match", "Discount")
+        const val N = 6
     }
 }
 
@@ -44,6 +46,8 @@ object Ranker {
         val keptBrands: Set<String> = emptySet(),
         val returnedBrands: Set<String> = emptySet(),
         val personalize: Boolean = false,
+        /** Only items with a real discount off the list price. */
+        val saleOnly: Boolean = false,
     )
 
     fun brandKey(l: Listing): String = l.brand.ifBlank { l.title.substringBefore(' ') }.lowercase(Locale.US).trim()
@@ -53,11 +57,11 @@ object Ranker {
     fun rank(items: List<Listing>, ctx: Ctx): List<Ranked> {
         val w0 = ctx.custom ?: ctx.preset.w
         val ws = w0.sum().takeIf { it > 0 } ?: 1.0
-        val w = DoubleArray(5) { w0[it] / ws }
+        val w = DoubleArray(Preset.N) { if (it < w0.size) w0[it] / ws else 0.0 }
 
         val pool = items.distinctBy { it.asin }.filter {
             it.title.isNotBlank() && it.asin !in ctx.hidden && brandKey(it) !in ctx.blockedBrands &&
-                !(ctx.hideSponsored && it.sponsored)
+                !(ctx.hideSponsored && it.sponsored) && (!ctx.saleOnly || it.discountPct >= 5)
         }
         if (pool.isEmpty()) return emptyList()
 
@@ -103,9 +107,12 @@ object Ranker {
             }
             if (l.sponsored) notes += "Sponsored placement (tagged, not boosted)"
             if (ur != null) notes += "Value uses unit price per ${l.unitPrice?.unit}"
-            val parts = doubleArrayOf(q, v, d, s, m)
+            // 50% off or more counts as a full discount score.
+            val disc = (l.discountPct / 50.0).coerceIn(0.0, 1.0)
+            if (l.discountPct > 0) notes += "${l.discountPct}% off the list price"
+            val parts = doubleArrayOf(q, v, d, s, m, disc)
             var score = 0.0
-            for (i in 0 until 5) score += w[i] * parts[i]
+            for (i in 0 until Preset.N) score += w[i] * parts[i]
             Ranked(l, score - pen, parts, w, b, pen, notes)
         }.sortedByDescending { it.score }
 

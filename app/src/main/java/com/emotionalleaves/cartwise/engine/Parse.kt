@@ -157,6 +157,13 @@ object Parse {
     private val imgIdRe = Regex("""/images/I/([A-Za-z0-9+%\-]+?)\.""")
     fun imageId(url: String): String = imgIdRe.find(url)?.groupValues?.get(1) ?: ""
 
+    /** Whole percent off; ignores tiny or implausible gaps (under 3% or over 90%). */
+    fun discountPct(price: Double?, list: Double?): Int {
+        if (price == null || list == null || list <= 0 || price <= 0 || list <= price) return 0
+        val pct = Math.round((1 - price / list) * 100).toInt()
+        return if (pct in 3..90) pct else 0
+    }
+
     fun bayes(rating: Double?, reviews: Int, prior: Double, k: Double = 200.0): Double {
         if (rating == null) return prior
         return (reviews * rating + k * prior) / (reviews + k)
