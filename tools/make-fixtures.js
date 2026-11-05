@@ -36,6 +36,22 @@ product: `<html><head><title>Product</title></head><body><input id="ASIN" value=
 <form action="/cart/add-to-cart/ref=dp_start"><input id="add-to-cart-button" name="submit.add-to-cart" value="Add to Cart" type="submit"></form>
 <input id="buy-now-button" name="submit.buy-now" value="Buy Now">
 </body></html>`,
+searchMobile: `<html><body>
+<div data-component-type="s-search-result" data-asin="B0SOUND001"><div class="puis-card">
+<img class="s-image" src="https://m.media-amazon.com/images/I/01MKUOLsA5L._AC_UL320_.gif" data-src="https://m.media-amazon.com/images/I/71SoundBarA._AC_UY218_.jpg" alt="Sponsored Ad - TCL 2.1 Channel Sound Bar with Wireless Subwoofer">
+<div data-cy="title-recipe"><h2 class="a-size-mini"><span>TCL</span></h2><a href="/dp/B0SOUND001"><h2 class="a-size-base-plus"><span>TCL 2.1 Channel Sound Bar with Wireless Subwoofer, Dolby Audio</span></h2></a></div>
+<span aria-label="4.4 out of 5 stars"></span><span aria-label="824 ratings"></span><span class="a-price"><span class="a-offscreen">$119.99</span></span><div data-cy="delivery-recipe">FREE delivery Tomorrow</div></div></div>
+<div data-component-type="s-search-result" data-asin="B0SOUND002"><img class="s-image" src="data:image/gif;base64,R0lGOD" srcset="https://m.media-amazon.com/images/I/61LGbar._AC_UY218_.jpg 1x, https://m.media-amazon.com/images/I/61LGbar._AC_UY436_.jpg 2x">
+<h2><span>LG</span></h2><h2><a href="/dp/B0SOUND002"><span>LG S40T 2.1 Sound Bar with Subwoofer</span></a></h2><span class="a-price"><span class="a-offscreen">$169.99</span></span></div>
+</body></html>`,
+productMobile: `<html><head><title>Amazon.com: Burr Coffee Grinder : Home &amp; Kitchen</title></head><body><div id="ppd"><input id="ASIN" value="B01GGKZ2SC">
+<span id="title">Burr Coffee Grinder, Electric</span>
+<img id="landingImage" src="https://m.media-amazon.com/images/I/01MKUOLsA5L.gif" data-a-dynamic-image='{"https://m.media-amazon.com/images/I/71grinder._AC_SX300_.jpg":[300,300],"https://m.media-amazon.com/images/I/71grinder._AC_SL1500_.jpg":[1500,1500]}'>
+<div id="buybox">$49.99 FREE delivery Saturday, November 8 Ships from Amazon Sold by Amazon.com Returns FREE 30-day refund/replacement
+<form action="/cart/add-to-cart/ref=dp"><input type="submit" name="submit.add-to-cart" value="Add to Cart"></form></div>
+<span>4.5 out of 5 stars</span><span>12,345 ratings</span>
+<div id="productDetails_feature_div"><ul><li><span class="a-text-bold">Best Sellers Rank:</span> #1,234 in Kitchen &amp; Dining (<a href="/gp/bestsellers/kitchen/ref=pd_zg_ts_kitchen">See Top 100 in Kitchen &amp; Dining</a>) #12 in Burr Coffee Grinders</li></ul></div>
+</div></body></html>`,
 evil: `<html><body><input id="add-to-cart-button" name="placeYourOrder1" value="Place your order"></body></html>`,
 orders: `<html><body><div class="order-card"><span>Order placed</span> <span>March 3, 2025</span> <span>Order # 112-1234567-1234567</span><div class="delivery-box__primary-text">Return complete</div><a href="/gp/product/B0CCCCCCC1"><img alt="Coffee beans 2lb" src="i.jpg"></a><a href="/gp/product/B0CCCCCCC1">Coffee beans 2lb</a><a>Return or replace items</a></div>
 <div class="order-card"><span>Order placed</span> <span>January 9, 2025</span><span>113-7654321-7654321</span><div class="delivery-box__primary-text">Delivered Jan 11</div><a href="/gp/product/B0CCCCCCC2">Paper towels 12 pack</a><a>Return or replace items</a></div></body></html>`,
@@ -45,11 +61,11 @@ lists: `<html><body><div id="your-lists-nav"><a href="/hz/wishlist/ls/ABC123?ref
 (async () => {
   const b = await chromium.launch();
 
-  for (const [kind, html] of [['search','search'],['product','product'],['addtocart','product'],['addtocart','evil'],['orders','orders'],['lists','lists'],['cartcount','product']]) {
+  for (const [kind, html] of [['search','searchMobile'],['product','productMobile'],['snapshot','productMobile'],['search','search'],['product','product'],['addtocart','product'],['addtocart','evil'],['orders','orders'],['lists','lists'],['cartcount','product']]) {
     const p = await b.newPage(); await p.setContent(pages[html]);
     const r = await p.evaluate(([ex, cfg, kind]) => new Promise(res => {
       window.CartwiseBridge = { post: (id, j) => res(j) };
-      eval(ex + "\n;window.__cartwise(" + JSON.stringify(kind) + "," + cfg + ",'id1','');");
+      eval(ex + "\n;window.__cartwise(" + JSON.stringify(kind) + "," + cfg + ",'id1'," + JSON.stringify(kind === 'snapshot' ? JSON.stringify({missing: ['category', 'price'], max: 15000}) : '') + ");");
     }), [ex, cfg, kind]);
     console.log('=== ' + kind + ' on ' + html + '\n' + r.slice(0, 300)); if (process.argv[4]) fs.writeFileSync(process.argv[4] + '/' + kind + '_' + html + '.json', r);
   }

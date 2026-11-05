@@ -248,7 +248,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
     }
 
     /** Trimmed HTML of a page (scripts and styles removed), for fixing selectors. Never for sensitive pages. */
-    suspend fun snapshot(url: String, kind: String): Res {
+    suspend fun snapshot(url: String, kind: String, arg: String = "{}"): Res {
         if (Sensitive.isSensitive(url)) return Res.Fail(Reason.SENSITIVE, "Not allowed on this page", url)
         return mutex.withLock {
             withContext(Dispatchers.Main) {
@@ -257,15 +257,13 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
                 val desktop = wantsDesktop(kind)
                 try {
                     if (desktop) w.settings.userAgentString = desktopUa(mobileUa)
-                    runLoggedNoUa(url)
+                    runLogged(url, "snapshot", arg, 30_000)
                 } finally {
                     if (desktop) w.settings.userAgentString = mobileUa
                 }
             }
         }
     }
-
-    private suspend fun runLoggedNoUa(url: String): Res = runLogged(url, "snapshot", "90000", 30_000)
 
     fun isSignedIn(): Boolean {
         val c = CookieManager.getInstance().getCookie("https://www.amazon.com") ?: return false

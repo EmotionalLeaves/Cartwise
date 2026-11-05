@@ -39,26 +39,55 @@
     var m = /\/(?:dp|gp\/product|gp\/aw\/d|product-reviews)\/([A-Z0-9]{10})/.exec(h || '');
     return m ? m[1] : '';
   }
-  function imgOf(el) {
-    if (!el) return '';
-    var s = at(el, 'data-old-hires');
-    if (!s) {
+  // Amazon swaps real photos in late; until then <img src> is a grey or transparent placeholder.
+  var IMG_RE = /https?:\/\/[^"'\s,<>]*?\/images\/I\/[A-Za-z0-9+%\-]{6,}\.[^"'\s,<>]*?\.(?:jpe?g|png|webp)/gi;
+  function goodImg(u) {
+    return !!u && u.indexOf('data:') !== 0 && /\/images\/I\//.test(u) && !/\.gif(\?|$)/i.test(u) &&
+      !/(grey-pixel|transparent-pixel|01MKUOLsA5L|11EIQ5IGqaL)/i.test(u);
+  }
+  function srcsetList(v) {
+    if (!v) return [];
+    return v.split(',').map(function (p) { return p.trim().split(/\s+/)[0]; }).filter(Boolean).reverse();
+  }
+  function imgOf(el, scope) {
+    var c = [];
+    if (el) {
+      c.push(at(el, 'data-old-hires'), at(el, 'data-a-hires'));
       var dyn = at(el, 'data-a-dynamic-image');
       if (dyn) {
         try {
-          var o = JSON.parse(dyn), best = '', bw = -1;
-          for (var k in o) { var w = (o[k] && o[k][0]) || 0; if (w >= bw) { bw = w; best = k; } }
-          s = best;
+          var o = JSON.parse(dyn); var ks = Object.keys(o);
+          ks.sort(function (a, b) { return ((o[b] && o[b][0]) || 0) - ((o[a] && o[a][0]) || 0); });
+          c = c.concat(ks);
         } catch (e) {}
       }
+      c = c.concat(srcsetList(at(el, 'srcset')), srcsetList(at(el, 'data-srcset')));
+      c.push(at(el, 'data-src'), at(el, 'data-lazy-src'), at(el, 'data-image-src'), at(el, 'src'));
+      var pic = el.closest ? el.closest('picture') : null;
+      if (pic) qall(pic, 'source').forEach(function (s) { c = c.concat(srcsetList(at(s, 'srcset'))); });
     }
-    if (!s) {
-      var ss = at(el, 'srcset');
-      if (ss) { var p = ss.split(','); s = p[p.length - 1].trim().split(' ')[0]; }
+    for (var i = 0; i < c.length; i++) { var u = c[i] ? abs(String(c[i]).trim()) : ''; if (goodImg(u)) return u; }
+    if (scope && scope.innerHTML) {
+      IMG_RE.lastIndex = 0; var m;
+      var html = scope.innerHTML;
+      while ((m = IMG_RE.exec(html))) { var x = m[0].replace(/&amp;/g, '&'); if (goodImg(x)) return x; }
     }
-    if (!s) s = at(el, 'src') || at(el, 'data-src');
-    if (s && s.indexOf('data:') === 0) s = at(el, 'data-src') || '';
-    return s ? abs(s) : '';
+    return '';
+  }
+  function bodyText(sels) {
+    var el = q(document, sels); if (!el) return '';
+    try { return String(el.innerText || el.textContent || '').replace(/\s+/g, ' '); } catch (e) { return txt(el); }
+  }
+  function textNodes(needle, limit) {
+    var out = [];
+    try {
+      var x = document.evaluate("//body//text()[contains(., '" + needle.replace(/'/g, '') + "')]", document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (var i = 0; i < x.snapshotLength && out.length < (limit || 10); i++) {
+        var n = x.snapshotItem(i).parentElement;
+        if (n && !n.closest('script,style,noscript')) out.push(n);
+      }
+    } catch (e) {}
+    return out;
   }
   function ratingOf(root, sels) {
     var el = q(root, sels); if (!el) return '';
@@ -70,7 +99,7 @@
   function unitIn(text) { var m = /\(\s*\$\s?[\d,]*\.?\d+\s*\/\s*[^)]{1,24}\)/.exec(text || ''); return m ? m[0] : ''; }
   function deliveryIn(text) {
     var m = /(?:FREE\s+)?(?:delivery|Get it|Arrives|shipping)[^.|]{0,70}/i.exec(text || '');
-    return m ? m[0] : '';
+    return m ? m[0].replace(/\s+(Ships from|Sold by|Order within|Details|Returns|Or fastest).*$/i, '').trim() : '';
   }
   function cardFor(cfg, a, root) {
     var T = cfg.tiles || {}; var sels = arr(T.card); var card = null;
@@ -98,7 +127,7 @@
       var t = map[asin];
       if (!t) { t = map[asin] = { asin: asin, url: abs('/dp/' + asin), title: '', image: '', price: '', rating: '', reviews: '', unitPrice: '' }; order.push(asin); }
       var im = a.querySelector('img') || card.querySelector('img');
-      if (!t.image && im) t.image = imgOf(im);
+      if (!t.image) t.image = imgOf(im, card);
       var ct = txt(card);
       if (!t.title) {
         var cand = at(im, 'alt');
@@ -133,7 +162,12 @@
     qa(document, S.card).forEach(function (c) {
       var asin = at(c, 'data-asin'); if (!asin || seen[asin]) return; seen[asin] = 1;
       var a = q(c, S.link); var im = q(c, S.image); var ct = txt(c);
-      var title = qt(c, S.title) || at(im, 'alt');
+      // Phone layout puts the brand in its own heading; the title is the longest heading text.
+      var heads = qall(c, S.title).map(txt).filter(function (t) { return t && t.length < 400; });
+      var alt = at(im, 'alt').replace(/^Sponsored Ad\s*[-–—]\s*/i, '');
+      var title = heads.concat([alt]).reduce(function (a, b) { return b.length > a.length ? b : a; }, '');
+      var brandLine = '';
+      heads.forEach(function (h) { if (h !== title && h.length < 40 && h.split(' ').length <= 4 && h.length > brandLine.length) brandLine = h; });
       var sp = !!q(c, S.sponsored);
       if (!sp) {
         var els = c.querySelectorAll('span,a');
@@ -150,22 +184,30 @@
         unitPrice: unitIn(ct),
         rating: ratingOf(c, S.rating),
         reviews: rv ? (at(rv, 'aria-label') || txt(rv)) : '',
-        image: imgOf(im),
+        image: imgOf(im, c),
         delivery: qt(c, S.delivery) || deliveryIn(ct),
         prime: !!q(c, S.prime),
         sponsored: sp,
-        brand: qt(c, S.brand)
+        brand: qt(c, S.brand) || brandLine
       });
     });
-    return { items: out, hasNext: !!q(document, S.next) };
+    return { items: out, hasNext: !!q(document, S.next) || out.length >= 12 };
   };
 
   EX.product = function (cfg) {
     var P = cfg.product || {};
     var asin = asinOf(location.href) || at(document.querySelector('input#ASIN, input[name="ASIN"]'), 'value');
     var pbt = qt(document, P.priceBlock);
+    var healed = [];
+    var main = bodyText(['#ppd', '#dp', '#a-page']);
+    var buy = bodyText(['#buybox', '#desktop_buybox', '#apex_offerDisplay_mobile', '#rightCol', '#ppd']) || main;
     var imgs = [];
     qall(document, P.images).forEach(function (e) { var s = imgOf(e); if (s && imgs.indexOf(s) < 0) imgs.push(s); });
+    if (!imgs.length) {
+      var og = at(document.querySelector("meta[property='og:image']"), 'content');
+      var s2 = goodImg(og) ? og : imgOf(null, q(document, ['#imageBlock', '#main-image-container', '#imageBlock_feature_div', '#ppd']));
+      if (s2) { imgs.push(s2); healed.push('images:fallback'); }
+    }
     var hist = [];
     qa(document, P.histogramRow).forEach(function (r) {
       var t = at(r, 'aria-label') + ' ' + txt(r); var m = /(\d{1,3})\s*%/.exec(t); if (m) hist.push(parseInt(m[1], 10));
@@ -215,29 +257,75 @@
     qall(document, P.related).forEach(function (root) {
       tiles(cfg, root).forEach(function (t) { if (!seenR[t.asin]) { seenR[t.asin] = 1; rel.push(t); } });
     });
+    // Category: breadcrumbs, else Best Sellers Rank, else "See Top 100 in", else the page title.
+    var crumbs = qa(document, P.breadcrumbs).map(txt).filter(function (s) { return s.length > 0 && s.length < 60 && s !== '›'; });
+    if (!crumbs.length) {
+      var bsr = '';
+      textNodes('Best Sellers Rank', 4).forEach(function (n) {
+        var box = n.closest('li,tr,td') || n.parentElement || n; var t = '';
+        try { t = String(box.innerText || box.textContent).replace(/\s+/g, ' '); } catch (e) { t = txt(box); }
+        if (t.length > 600) t = t.slice(0, 600);
+        if (!bsr || t.length > bsr.length) bsr = t;
+      });
+      var re = /#\s?[\d,]+\s+in\s+([^#(]+?)(?=\s*\(|\s*#|$)/g, m, cats = [];
+      while ((m = re.exec(bsr))) { var cn = m[1].trim(); if (cn && cn.length < 60 && cats.indexOf(cn) < 0) cats.push(cn); }
+      if (cats.length) { crumbs = cats.length > 1 ? [cats[0], cats[cats.length - 1]] : cats; healed.push('category:best-sellers-rank'); }
+    }
+    if (!crumbs.length) {
+      qall(document, ['a[href*="/gp/bestsellers/"]']).forEach(function (a) {
+        var mm = /Top 100 in (.+)$/i.exec(txt(a)); if (mm && crumbs.indexOf(mm[1].trim()) < 0) crumbs.push(mm[1].trim());
+      });
+      if (crumbs.length) healed.push('category:top-100-link');
+    }
+    if (!crumbs.length) {
+      var parts = String(document.title || '').split(' : ');
+      if (parts.length >= 3) { var last = parts[parts.length - 1].trim(); if (last && last.length < 50) { crumbs = [last]; healed.push('category:page-title'); } }
+    }
+    var title = qt(document, P.title);
+    if (!title) {
+      title = at(document.querySelector("meta[name='title']"), 'content') || String(document.title || '');
+      title = title.replace(/^Amazon\.com\s*:\s*/i, '').split(' : ')[0].trim();
+      if (title) healed.push('title:page-title');
+    }
+    var price = qt(document, P.price) || priceIn(pbt);
+    if (!price) { price = priceIn(buy); if (price) healed.push('price:buy-box-text'); }
+    var rating = ratingOf(document, P.rating);
+    if (!rating) { var rm = /(\d\.\d) out of 5 stars/.exec(main); if (rm) { rating = rm[0]; healed.push('rating:text'); } }
+    var reviewCount = qt(document, P.reviewCount);
+    if (!reviewCount) { var cm = /([\d,]+)\s+(?:global\s+)?ratings?/i.exec(main); if (cm) { reviewCount = cm[0]; healed.push('reviews:text'); } }
+    var delivery = qt(document, P.delivery);
+    if (!delivery) { delivery = deliveryIn(buy); if (delivery) healed.push('delivery:text'); }
+    var soldBy = qt(document, P.soldBy);
+    if (!soldBy) { var sm = /Sold by\s+(.{2,60}?)(?=\s+(?:Ships from|Returns|Payment|Packaging|Gift|Details)|$)/i.exec(buy); if (sm) { soldBy = sm[1]; healed.push('soldBy:text'); } }
+    var shipsFrom = qt(document, P.shipsFrom);
+    if (!shipsFrom) { var fm = /Ships from\s+(.{2,40}?)(?=\s+(?:Sold by|Returns|Payment|Packaging)|$)/i.exec(buy); if (fm) shipsFrom = fm[1]; }
+    var returns = qt(document, P.returns);
+    if (!returns) { var rt = /((?:FREE\s+)?(?:\d+-day\s+)?(?:refund\/replacement|returns?)[^.]{0,60})/i.exec(buy); if (rt) returns = rt[1]; }
+    var cartBtn = q(document, P.addToCart) || document.querySelector("form[action*='add-to-cart'] input[type='submit'], form[action*='add-to-cart'] button");
     return {
       asin: asin,
-      title: qt(document, P.title),
+      title: title,
       brand: qt(document, P.brand),
-      price: qt(document, P.price) || priceIn(pbt),
+      price: price,
       listPrice: qt(document, P.listPrice),
       unitPrice: unitIn(pbt),
       images: imgs.slice(0, 8),
-      rating: ratingOf(document, P.rating),
-      reviewCount: qt(document, P.reviewCount),
+      rating: rating,
+      reviewCount: reviewCount,
       histogram: hist.slice(0, 5),
-      delivery: qt(document, P.delivery),
-      soldBy: qt(document, P.soldBy),
-      shipsFrom: qt(document, P.shipsFrom),
-      returns: qt(document, P.returns),
+      delivery: delivery,
+      soldBy: soldBy,
+      shipsFrom: shipsFrom,
+      returns: returns,
       availability: qt(document, P.availability),
       bullets: qa(document, P.bullets).map(txt).filter(function (s) { return s.length > 1; }).slice(0, 15),
       details: details.slice(0, 40),
       reviews: reviews,
-      breadcrumbs: qa(document, P.breadcrumbs).map(txt).filter(function (s) { return s.length > 0; }),
+      breadcrumbs: crumbs,
       variants: variants.slice(0, 60),
       related: rel.slice(0, 30),
-      canAddToCart: !!q(document, P.addToCart),
+      canAddToCart: !!cartBtn,
+      healed: healed,
       cartCount: qt(document, (cfg.common || {}).cartCount)
     };
   };
@@ -280,7 +368,7 @@
       if (price && price !== '-Infinity' && !isNaN(parseFloat(price))) price = '$' + parseFloat(price).toFixed(2);
       else price = qt(li, L.itemPrice) || priceIn(txt(li));
       var im = li.querySelector('img');
-      items.push({ asin: asin, title: (a ? (at(a, 'title') || txt(a)) : '') || at(im, 'alt'), image: imgOf(im), price: price, url: abs('/dp/' + asin) });
+      items.push({ asin: asin, title: (a ? (at(a, 'title') || txt(a)) : '') || at(im, 'alt'), image: imgOf(im, li), price: price, url: abs('/dp/' + asin) });
     });
     if (!items.length) items = tiles(cfg, document);
     return { lists: lists, items: items, name: qt(document, L.listName) };
@@ -294,7 +382,7 @@
 
   EX.addtocart = function (cfg) {
     var P = cfg.product || {};
-    var b = q(document, P.addToCart);
+    var b = q(document, P.addToCart) || document.querySelector("form[action*='add-to-cart'] input[type='submit'], form[action*='add-to-cart'] button");
     if (!b) return { clicked: false, reason: 'No Add to cart button on this page' };
     var form = b.closest ? b.closest('form') : null;
     var sig = [b.id, at(b, 'name'), at(b, 'value'), at(b, 'aria-label'), at(b, 'title'), String(b.className || ''), txt(b)].join(' ');
@@ -304,23 +392,99 @@
     return { clicked: true };
   };
 
-  // Trimmed page HTML for fixing selectors.json: no scripts, styles, svgs or inline images.
-  EX.snapshot = function (cfg, arg) {
-    var root = document.body ? document.body.cloneNode(true) : document.documentElement.cloneNode(true);
-    var drop = root.querySelectorAll('script,style,noscript,svg,iframe,link,template,input[type=hidden]');
-    for (var i = 0; i < drop.length; i++) drop[i].parentNode && drop[i].parentNode.removeChild(drop[i]);
-    var all = root.querySelectorAll('*');
-    for (var j = 0; j < all.length; j++) {
-      var el = all[j];
-      el.removeAttribute('style');
-      var src = el.getAttribute('src');
-      if (src && src.indexOf('data:') === 0) el.setAttribute('src', 'data:');
-      var dyn = el.getAttribute('data-a-dynamic-image');
-      if (dyn && dyn.length > 200) el.setAttribute('data-a-dynamic-image', dyn.slice(0, 200));
+  // A small, targeted page report for fixing selectors.json from a phone: no nav, ads, scripts or tracking.
+  // arg = {"missing": ["category", ...], "max": 15000}
+  var SKIP = 'script,style,noscript,svg,iframe,link,template,canvas,#nav-main,#navbar,header,[id^="ape_"],.ape-wrapper,[data-csa-c-painter],#rhf,#navFooter,#nav-flyout-rufus,#skiplink';
+  var KEEP_ATTR = /^(id|class|href|aria-label|title|name|value|type|action|data-asin|data-hook|data-cy|data-component-type|data-feature-name|data-a-strike|data-price|tabular-attribute-name)$/;
+  function cleanHtml(el, maxLen) {
+    var c = el.cloneNode(true);
+    var drop = c.querySelectorAll(SKIP);
+    for (var i = 0; i < drop.length; i++) if (drop[i].parentNode) drop[i].parentNode.removeChild(drop[i]);
+    var all = [c].concat(Array.prototype.slice.call(c.querySelectorAll('*')));
+    all.forEach(function (n) {
+      var names = []; for (var j = 0; j < n.attributes.length; j++) names.push(n.attributes[j].name);
+      names.forEach(function (a) {
+        if (a === 'src' && goodImg(n.getAttribute('src'))) return;
+        if (!KEEP_ATTR.test(a)) { n.removeAttribute(a); return; }
+        var v = n.getAttribute(a) || '';
+        if (a === 'class') { v = v.split(/\s+/).filter(function (x) { return x && !/^(a-spacing|a-size|a-color|aok-|celwidget|a-text-)/.test(x); }).slice(0, 4).join(' '); n.setAttribute(a, v); }
+        else if (a === 'href') n.setAttribute(a, v.replace(/[?&].*$/, '').replace(/\/ref=.*$/, '').slice(0, 80));
+        else if (v.length > 100) n.setAttribute(a, v.slice(0, 100));
+      });
+    });
+    var h = c.outerHTML.replace(/<!--[\s\S]*?-->/g, '').replace(/\s{2,}/g, ' ').replace(/>\s+</g, '><');
+    return h.length > maxLen ? h.slice(0, maxLen) + '…' : h;
+  }
+  function blockFor(n, maxLen) {
+    var b = n, best = n;
+    while (b && b.parentElement && b !== document.body) {
+      b = b.parentElement;
+      if (cleanHtml(b, 99999).length > maxLen) break;
+      best = b;
     }
-    var html = root.outerHTML.replace(/\s{2,}/g, ' ');
-    var max = parseInt(arg, 10) || 120000;
-    return { html: html.slice(0, max), length: html.length };
+    return best;
+  }
+  var HINTS = {
+    category: { text: ['Best Sellers Rank', 'See Top 100', 'Back to results'], sel: ['#wayfinding-breadcrumbs_feature_div', '.a-breadcrumb', '[id*="breadcrumb"]', 'a[href*="/gp/bestsellers/"]'] },
+    title: { text: [], sel: ['h1', '#title', '[id*="Title"]', "meta[name='title']"] },
+    price: { text: [], sel: ['[id*="price" i]', '.a-price', '[id*="Price"]'] },
+    images: { text: [], sel: ['#imageBlock', '#main-image-container', '[id*="image" i] img', 'img[src*="/images/I/"]'] },
+    rating: { text: ['out of 5 stars'], sel: ['#averageCustomerReviews', '[id*="acr"]'] },
+    reviews: { text: ['ratings'], sel: ['#acrCustomerReviewText'] },
+    delivery: { text: ['delivery', 'Arrives'], sel: ['[id*="DELIVERY"]', '[id*="delivery" i]'] },
+    'sold by': { text: ['Sold by', 'Ships from'], sel: ['#merchant-info', '[id*="merchant" i]', '.tabular-buybox-text'] },
+    'add to cart': { text: ['Add to Cart', 'Add to cart'], sel: ['[id*="add-to-cart"]', "form[action*='cart']"] },
+    title_s: { text: [], sel: ['h2'] },
+    price_s: { text: [], sel: ['.a-price'] },
+    image: { text: [], sel: ['img.s-image', 'img'] },
+    unit: { text: ['/Count)', '/Ounce)'], sel: [] },
+    items: { text: [], sel: ['[data-asin]', '[data-component-type]'] },
+    date: { text: ['Order placed', 'ORDER PLACED'], sel: ['.order-card', '.js-order-card'] },
+    lists: { text: [], sel: ['a[href*="/hz/wishlist/ls/"]'] }
+  };
+  EX.snapshot = function (cfg, arg) {
+    var o = {}; try { o = JSON.parse(arg || '{}'); } catch (e) {}
+    var max = o.max || 15000;
+    var missing = o.missing || [];
+    var out = [];
+    var used = 0;
+    var seen = [];
+    function add(s) { if (used + s.length > max) return false; out.push(s); used += s.length + 1; return true; }
+    missing.forEach(function (f) {
+      var h = HINTS[f] || HINTS[f + '_s'] || { text: [f], sel: [] };
+      add('## Where "' + f + '" might be');
+      var nodes = [];
+      h.text.forEach(function (t) { nodes = nodes.concat(textNodes(t, 3)); });
+      h.sel.forEach(function (sel) { try { var r = document.querySelectorAll(sel); for (var i = 0; i < r.length && i < 3; i++) nodes.push(r[i]); } catch (e) {} });
+      var n = 0;
+      nodes.forEach(function (node) {
+        if (n >= 4) return;
+        var b = blockFor(node, 1400);
+        if (seen.indexOf(b) >= 0) return; seen.push(b);
+        if (add(cleanHtml(b, 1400))) n++;
+      });
+      if (!n) add('(nothing on the page mentions it)');
+    });
+    add('## Page title: ' + document.title);
+    add('## Outline of the main content (tag#id.classes "text")');
+    var root = q(document, ['#dp', '#search', '#ppd', '.your-orders-content-container', '#wishlist-page', '#a-page']) || document.body;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function (n) {
+        try { if (n.matches(SKIP)) return NodeFilter.FILTER_REJECT; } catch (e) {}
+        return (n.id || n.getAttribute('data-component-type') || n.getAttribute('data-hook') || n.getAttribute('data-cy')) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    var lines = 0;
+    while (walker.nextNode() && lines < 400) {
+      var e = walker.currentNode;
+      var cls = String(e.className && e.className.baseVal === undefined ? e.className : '').split(/\s+/).filter(function (x) { return x && !/^(a-spacing|a-size|a-color|aok-|celwidget)/.test(x); }).slice(0, 3);
+      var extra = ['data-component-type', 'data-hook', 'data-cy'].map(function (a) { var v = e.getAttribute(a); return v ? '[' + a + '=' + v + ']' : ''; }).join('');
+      var t = txt(e).slice(0, 50);
+      if (!add(e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (cls.length ? '.' + cls.join('.') : '') + extra + (t ? ' "' + t + '"' : ''))) break;
+      lines++;
+    }
+    var full = 0; try { full = document.documentElement.outerHTML.length; } catch (e) {}
+    return { html: out.join('\n'), length: full };
   };
 
   window.__cartwise = function (kind, cfg, id, arg) {

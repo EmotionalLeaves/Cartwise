@@ -67,6 +67,51 @@ class ExtractTest {
         assertEquals("Shopping List", l.name)
     }
 
+    @Test fun phoneSearchLayout() {
+        val p = Extract.searchPage(fixture("search_searchMobile"), "https://www.amazon.com/s?k=sound+bar")
+        val tcl = p.items[0]
+        assertEquals("TCL 2.1 Channel Sound Bar with Wireless Subwoofer, Dolby Audio", tcl.title)
+        assertEquals("TCL", tcl.brand)
+        assertTrue("placeholder photo must be skipped: ${tcl.image}", tcl.image.contains("71SoundBarA"))
+        assertEquals("LG S40T 2.1 Sound Bar with Subwoofer", p.items[1].title)
+        assertTrue(p.items[1].image.contains("61LGbar"))
+    }
+
+    @Test fun phoneProductWithoutBreadcrumbs() {
+        val p = Extract.product(fixture("product_productMobile"), "https://www.amazon.com/dp/B01GGKZ2SC")
+        assertEquals("Kitchen & Dining › Burr Coffee Grinders", p.category)
+        assertEquals(49.99, p.price!!, 1e-9)
+        assertEquals(4.5, p.rating!!, 1e-9)
+        assertEquals(12345, p.reviews)
+        assertEquals(1.0, p.seller, 1e-9)
+        assertTrue(p.canAddToCart)
+        assertTrue(p.images.single().contains("SL1500"))
+        assertEquals("FREE delivery Saturday, November 8", p.deliveryText)
+        val h = com.emotionalleaves.cartwise.engine.HealthLog.state.value["product"]!!
+        assertEquals(1.0, h.fields["category"]!!, 1e-9)
+        assertTrue(h.notes.contains("category:best-sellers-rank"))
+    }
+
+    @Test fun reportIsSmallAndTargeted() {
+        val html = fixture("snapshot_productMobile").getString("html")
+        assertTrue(html.length < 16_000)
+        assertTrue(html.contains("Best Sellers Rank"))
+        assertFalse(html.contains("<script"))
+    }
+
+    @Test fun photos() {
+        assertEquals("", Extract.cleanImage("https://m.media-amazon.com/images/I/01MKUOLsA5L._AC_UL320_.gif"))
+        assertEquals("", Extract.cleanImage("data:image/gif;base64,AAA"))
+        assertEquals(
+            "https://m.media-amazon.com/images/I/71abc._AC_SL600_.jpg",
+            com.emotionalleaves.cartwise.engine.Fmt.image("https://m.media-amazon.com/images/I/71abc._AC_UY218_.jpg", 600),
+        )
+        assertEquals(
+            "https://m.media-amazon.com/images/I/71abc._AC_SL600_.jpg",
+            com.emotionalleaves.cartwise.engine.Fmt.image("https://m.media-amazon.com/images/I/71abc.jpg", 600),
+        )
+    }
+
     @Test fun addToCartGuard() {
         assertTrue(fixture("addtocart_product").getBoolean("clicked"))
         assertFalse(fixture("addtocart_evil").getBoolean("clicked"))

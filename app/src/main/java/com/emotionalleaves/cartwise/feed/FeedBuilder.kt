@@ -273,41 +273,7 @@ class FeedBuilder(
         for (c in ordered) {
             val l = c.l
             if (l.asin.isBlank() || l.title.isBlank() || !doneAsins.add(l.asin)) continue
-            if (l.asin in p.blockedItems) continue
-            val brand = l.brand.ifBlank { l.title.substringBefore(' ') }
-            if (brand.lowercase() in p.blockedBrands) continue
-            if (l.asin in p.owned && c.shelf != Shelf.RESTOCK) continue
-
-            signals.remember(l.toItem(c.category))
-            val item = dao.item(l.asin) ?: ItemEntity(ref = l.asin, title = l.title)
-            val v = taste.vectorFor(item)
-            val fit = taste.fit(p, v, item.brand.ifBlank { brand }, item.category)
-            if (fit.score < 0) continue
-            val f = fit.score
-            when (c.shelf) {
-                Shelf.RESTOCK, Shelf.PRICE_DROP -> Unit
-                Shelf.WILDCARD -> if (f < 0.15 || f > 0.55) continue
-                else -> if (f < TasteModel.FIT_CUTOFF) continue
-            }
-
-            val bayes = Parse.bayes(l.rating ?: item.rating, if (l.reviews > 0) l.reviews else item.reviews, 4.3)
-            val qn = if ((l.rating ?: item.rating) == null) 0.4 else ((bayes - 3.5) / 1.5).coerceIn(0.0, 1.0)
-            val quality = 0.7 * qn + 0.3 * maxOf(l.seller, item.seller)
-            val seasonal = p.seasonal.any { Vec.cos(v, it) > 0.6 }
-            val timing = if (seasonal) maxOf(c.timing, 0.6) else c.timing
-            val novelty = if (l.asin in seen) 0.4 else 1.0
-            val price = l.price ?: item.price
-            val median = fit.cluster?.e?.medianPrice
-            val value = if (price == null || median == null || median <= 0) 0.4 else (1.0 - price / (2 * median)).coerceIn(0.0, 1.0)
-            val score = 0.45 * f + 0.20 * quality + 0.15 * timing + 0.10 * value + 0.10 * novelty
-
-            var reason = c.reason
-            if (c.shelf == Shelf.NEW_IN || c.shelf == Shelf.POPULAR) {
-                val near = taste.nearestKept(p, v)
-                if (near != null && near.second > 0.6) reason = "Because you kept: " + Fmt.short(near.first.title, 36)
-            }
-            if (seasonal && c.shelf != Shelf.RESTOCK && c.shelf != Shelf.PRICE_DROP) reason += " · you shop this time of year"
-            scored += Scored(c, score, f, reason, fit.cluster?.e?.id, Words.cloneTokens(l.title, brand))
+            scoreOne(p, c, seen)?.let { scored += it }
         }
 
         // Variety rules: no near-duplicates, max 3 cards per brand, shelves of up to 10, 1 in 8 wildcard.
@@ -366,6 +332,109 @@ class FeedBuilder(
                 createdAt = now,
             )
         }
+    }
+
+    /** Scores one candidate with the feed formula; null when it doesn't clear the bar. */
+    private suspend fun scoreOne(p: TasteModel.Profile, c: Cand, seen: Set<String>): Scored? {
+        val l = c.l
+        if (l.asin in p.blockedItems) return null
+        val brand = l.brand.ifBlank { l.title.substringBefore(' ') }
+        if (brand.lowercase() in p.blockedBrands) return null
+        if (l.asin in p.owned && c.shelf != Shelf.RESTOCK) return null
+
+        signals.remember(l.toItem(c.category))
+        val item = dao.item(l.asin) ?: ItemEntity(ref = l.asin, title = l.title)
+        val v = taste.vectorFor(item)
+        val fit = taste.fit(p, v, item.brand.ifBlank { brand }, item.category)
+        if (fit.score < 0) return null
+        val f = fit.score
+        when (c.shelf) {
+            Shelf.RESTOCK, Shelf.PRICE_DROP -> Unit
+            Shelf.WILDCARD -> if (f < 0.15 || f > 0.55) return null
+            else -> if (f < TasteModel.FIT_CUTOFF) return null
+        }
+
+        val bayes = Parse.bayes(l.rating ?: item.rating, if (l.reviews > 0) l.reviews else item.reviews, 4.3)
+        val qn = if ((l.rating ?: item.rating) == null) 0.4 else ((bayes - 3.5) / 1.5).coerceIn(0.0, 1.0)
+        val quality = 0.7 * qn + 0.3 * maxOf(l.seller, item.seller)
+        val seasonal = p.seasonal.any { Vec.cos(v, it) > 0.6 }
+        val timing = if (seasonal) maxOf(c.timing, 0.6) else c.timing
+        val novelty = if (l.asin in seen) 0.4 else 1.0
+        val price = l.price ?: item.price
+        val median = fit.cluster?.e?.medianPrice
+        val value = if (price == null || median == null || median <= 0) 0.4 else (1.0 - price / (2 * median)).coerceIn(0.0, 1.0)
+        val score = 0.45 * f + 0.20 * quality + 0.15 * timing + 0.10 * value + 0.10 * novelty
+
+        var reason = c.reason
+        if (c.shelf == Shelf.NEW_IN || c.shelf == Shelf.POPULAR) {
+            val near = taste.nearestKept(p, v)
+            if (near != null && near.second > 0.6) reason = "Because you kept: " + Fmt.short(near.first.title, 36)
+        }
+        if (seasonal && c.shelf != Shelf.RESTOCK && c.shelf != Shelf.PRICE_DROP) reason += " · you shop this time of year"
+        return Scored(c, score, f, reason, fit.cluster?.e?.id, Words.cloneTokens(l.title, brand))
+    }
+
+    // ---- "More for you": the endless part of the feed, one page per scroll ----
+
+    data class More(val cards: List<FeedCardEntity>, val wildcard: Boolean, val error: String? = null, val noInterests: Boolean = false)
+
+    @Volatile private var cachedProfile: Pair<Long, TasteModel.Profile>? = null
+
+    private suspend fun freshProfile(): TasteModel.Profile {
+        val now = System.currentTimeMillis()
+        cachedProfile?.let { if (now - it.first < 10 * 60_000) return it.second }
+        return taste.profile().also { cachedProfile = now to it }
+    }
+
+    fun forgetProfile() {
+        cachedProfile = null
+    }
+
+    /**
+     * Step n of the endless stream: rotates through your interests and, for each, through
+     * relevance, newest and most-reviewed pages; every 4th step is a wildcard one category over.
+     * Loads exactly one page.
+     */
+    suspend fun more(step: Int, exclude: Set<String>): More {
+        val p = freshProfile()
+        val clusters = p.clusters.filter { !it.e.muted }
+        if (clusters.isEmpty()) return More(emptyList(), false, noInterests = true)
+        val c = clusters[step % clusters.size]
+        val round = step / clusters.size
+        val wildcard = step % 4 == 3
+        val enc = ShopRepo.enc(c.e.query)
+        val (url, shelf, reason) = if (wildcard) {
+            val q = Categories.adjacentQuery(c.roots.firstOrNull(), c.e.query, step)
+            Triple(shop.url("search", "q" to ShopRepo.enc(q), "page" to (round / 4 + 1).toString()), Shelf.WILDCARD, "Wildcard — next to " + c.name)
+        } else {
+            val page = round / 3 + 1
+            when (round % 3) {
+                0 -> Triple(shop.url("search", "q" to enc, "page" to page.toString()), Shelf.NEW_IN, "Matches your interest: " + c.name)
+                1 -> Triple(shop.url("searchNew", "q" to enc) + "&page=$page", Shelf.NEW_IN, "New in " + c.name)
+                else -> Triple(shop.url("searchPopular", "q" to enc) + "&page=$page", Shelf.NEW_IN, "Well reviewed in " + c.name)
+            }
+        }
+        val items = when (val r = shop.searchUrl(url)) {
+            is Load.Ok -> r.v.items
+            is Load.Fail -> return More(emptyList(), wildcard, error = r.message)
+        }
+        val seen = dao.seenAsins().toSet()
+        val now = System.currentTimeMillis()
+        val scored = items.asSequence()
+            .filter { !it.sponsored && it.asin.isNotBlank() && it.title.isNotBlank() && it.asin !in exclude }
+            .distinctBy { it.asin }
+            .toList()
+            .mapNotNull { scoreOne(p, Cand(it, shelf, reason, 0.2), seen) }
+            .sortedByDescending { it.score }
+        val cards = scored.mapIndexed { i, s ->
+            val l = s.c.l
+            FeedCardEntity(
+                asin = l.asin, shelf = "MORE", shelfLabel = "More for you", position = 100_000 + step * 100 + i,
+                title = l.title, image = l.image, price = l.price, rating = l.rating, reviews = l.reviews, brand = l.brand,
+                reason = s.reason, score = s.score, fit = s.fit, wildcard = wildcard, createdAt = now,
+            )
+        }
+        return More(cards, wildcard)
     }
 
     // ---- Feedback from the feed cards ----

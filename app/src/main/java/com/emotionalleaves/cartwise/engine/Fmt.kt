@@ -37,6 +37,19 @@ object Fmt {
         else -> "Arrives in $days days"
     }
 
+    private val sizeToken = Regex("""\._[^/]*?_\.(jpe?g|png|webp)$""", RegexOption.IGNORE_CASE)
+    private val plainExt = Regex("""\.(jpe?g|png|webp)$""", RegexOption.IGNORE_CASE)
+
+    /** Asks Amazon's image server for a sharp square photo of about [px] pixels. */
+    fun image(url: String, px: Int = 500): String {
+        if (!url.contains("/images/I/")) return url
+        return when {
+            sizeToken.containsMatchIn(url) -> sizeToken.replace(url) { "._AC_SL${px}_." + it.groupValues[1] }
+            plainExt.containsMatchIn(url) -> plainExt.replace(url) { "._AC_SL${px}_." + it.groupValues[1] }
+            else -> url
+        }
+    }
+
     fun short(title: String, n: Int = 40): String {
         val t = title.trim()
         if (t.length <= n) return t

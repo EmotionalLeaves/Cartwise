@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -24,14 +25,93 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.emotionalleaves.cartwise.Graph
 import com.emotionalleaves.cartwise.data.FeedCardEntity
 import com.emotionalleaves.cartwise.engine.Fmt
 import com.emotionalleaves.cartwise.feed.Shelf
 import com.emotionalleaves.cartwise.feed.Workers
+import com.emotionalleaves.cartwise.engine.Parse
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+
+
+/** The endless "More for you" stream under the shelves. One Amazon page per batch, at least 3 s apart. */
+class ForYouVm : ViewModel() {
+    val more = mutableStateListOf<FeedCardEntity>()
+    var loading by mutableStateOf(false)
+        private set
+    var exhausted by mutableStateOf(false)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var noInterests by mutableStateOf(false)
+        private set
+
+    private var step = 0
+    private var empties = 0
+    private var lastLoad = 0L
+    private var job: Job? = null
+
+    fun reset() {
+        job?.cancel()
+        more.clear(); step = 0; empties = 0; exhausted = false; error = null; noInterests = false; loading = false
+        Graph.feed.forgetProfile()
+    }
+
+    fun loadMore(shelf: List<FeedCardEntity>) {
+        if (loading || exhausted) return
+        loading = true
+        error = null
+        job = viewModelScope.launch {
+            var added = 0
+            var tries = 0
+            while (added == 0 && tries < 3 && !exhausted) {
+                tries++
+                val wait = 3_000 - (System.currentTimeMillis() - lastLoad)
+                if (wait > 0) delay(wait)
+                val exclude = shelf.map { it.asin }.toHashSet().apply { more.forEach { add(it.asin) } }
+                val res = Graph.feed.more(step++, exclude)
+                lastLoad = System.currentTimeMillis()
+                if (res.noInterests) { noInterests = true; exhausted = true; break }
+                if (res.error != null) { error = res.error; break }
+                // Variety: max 3 cards per brand across the whole feed, 1 in 8 wildcards, no near-duplicate photos.
+                val brands = HashMap<String, Int>()
+                (shelf + more).forEach { val b = brandOf(it); brands[b] = (brands[b] ?: 0) + 1 }
+                val images = (shelf + more).map { Parse.imageId(it.image) }.filter { it.isNotEmpty() }.toHashSet()
+                val wildShown = more.count { it.wildcard }
+                var wildAllowed = maxOf(1, (more.size + res.cards.size) / 8) - wildShown
+                val fresh = ArrayList<FeedCardEntity>()
+                for (c in res.cards) {
+                    val b = brandOf(c)
+                    if ((brands[b] ?: 0) >= 3) continue
+                    val img = Parse.imageId(c.image)
+                    if (img.isNotEmpty() && img in images) continue
+                    if (c.wildcard) { if (wildAllowed <= 0) continue; wildAllowed-- }
+                    brands[b] = (brands[b] ?: 0) + 1
+                    if (img.isNotEmpty()) images += img
+                    fresh += c
+                }
+                more.addAll(fresh)
+                added = fresh.size
+                if (added == 0) { if (++empties >= 8) exhausted = true } else empties = 0
+            }
+            loading = false
+        }
+    }
+
+    fun remove(asin: String) {
+        more.removeAll { it.asin == asin }
+    }
+
+    private fun brandOf(c: FeedCardEntity) = c.brand.ifBlank { c.title.substringBefore(' ') }.lowercase()
+}
 
 @Composable
 fun ForYouScreen(nav: NavController) {
@@ -44,6 +124,19 @@ fun ForYouScreen(nav: NavController) {
     val signedIn = remember { Graph.shop.isSignedIn() }
     val scope = rememberCoroutineScope()
     var menuFor by remember { mutableStateOf<FeedCardEntity?>(null) }
+    val vm: ForYouVm = viewModel { ForYouVm() }
+    val list = rememberLazyListState()
+    val hasInterests = clusters.isNotEmpty()
+    val cardsNow by rememberUpdatedState(cards)
+    val refreshing by rememberUpdatedState(progress.running)
+    LaunchedEffect(list, hasInterests) {
+        if (!hasInterests) return@LaunchedEffect
+        snapshotFlow {
+            val info = list.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 4) to info.totalItemsCount
+        }.distinctUntilChanged().collect { (near, _) -> if (near && !refreshing) vm.loadMore(cardsNow) }
+    }
 
     Screen(
         title = "For You",
@@ -56,10 +149,10 @@ fun ForYouScreen(nav: NavController) {
     ) { pad ->
         PullToRefreshBox(
             isRefreshing = progress.running,
-            onRefresh = { Workers.refreshNow(ctx) },
+            onRefresh = { vm.reset(); Workers.refreshNow(ctx) },
             modifier = Modifier.padding(pad).fillMaxSize(),
         ) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (progress.running) {
                     item("progress") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -147,6 +240,41 @@ fun ForYouScreen(nav: NavController) {
                 progress.error?.let { err ->
                     item("err") { Banner("Last refresh failed: $err") }
                 }
+                if (hasInterests && (vm.more.isNotEmpty() || vm.loading || vm.error != null)) {
+                    item("more-h") { SectionHeader("More for you") }
+                }
+                items(vm.more, key = { "m-" + it.asin }) { card ->
+                    MoreCard(
+                        card,
+                        modifier = Modifier.animateItem(),
+                        onOpen = {
+                            scope.launch { Graph.feed.opened(card.asin) }
+                            nav.openProduct(card.asin)
+                        },
+                        onUp = { scope.launch { Graph.feed.thumb(card, true) } },
+                        onDown = { vm.remove(card.asin); scope.launch { Graph.feed.thumb(card, false) } },
+                        onMore = { menuFor = card },
+                    )
+                }
+                if (vm.loading) item("more-loading") { Column { ResultSkeleton(); ResultSkeleton() } }
+                vm.error?.let { err ->
+                    item("more-err") {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Couldn't load more: $err", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { vm.loadMore(cards) }) { Text("Try again") }
+                        }
+                    }
+                }
+                if (vm.exhausted && hasInterests) {
+                    item("more-end") {
+                        Text(
+                            "That's everything that clears the bar right now. Thumbs-up a few things or search for what you like, and there'll be more.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -158,18 +286,22 @@ fun ForYouScreen(nav: NavController) {
                 ListItem(
                     headlineContent = { Text("This item") },
                     supportingContent = { Text(Fmt.short(card.title, 60)) },
-                    modifier = Modifier.combinedClickable(onClick = { scope.launch { Graph.feed.neverShow(card, "item") }; menuFor = null }),
+                    modifier = Modifier.combinedClickable(onClick = { vm.remove(card.asin); scope.launch { Graph.feed.neverShow(card, "item") }; menuFor = null }),
                 )
                 val brand = card.brand.ifBlank { card.title.substringBefore(' ') }
                 ListItem(
                     headlineContent = { Text("Anything from $brand") },
                     supportingContent = { Text("Hidden everywhere in Cartwise, including search") },
-                    modifier = Modifier.combinedClickable(onClick = { scope.launch { Graph.feed.neverShow(card, "brand") }; menuFor = null }),
+                    modifier = Modifier.combinedClickable(onClick = {
+                        val b = card.brand.ifBlank { card.title.substringBefore(' ') }
+                        vm.more.removeAll { it.brand.ifBlank { it.title.substringBefore(' ') }.equals(b, true) }
+                        scope.launch { Graph.feed.neverShow(card, "brand") }; menuFor = null
+                    }),
                 )
                 ListItem(
                     headlineContent = { Text("Things like this") },
                     supportingContent = { Text("Removes this topic from your feed for good") },
-                    modifier = Modifier.combinedClickable(onClick = { scope.launch { Graph.feed.neverShow(card, "topic") }; menuFor = null }),
+                    modifier = Modifier.combinedClickable(onClick = { vm.remove(card.asin); scope.launch { Graph.feed.neverShow(card, "topic") }; menuFor = null }),
                 )
             }
         }
@@ -212,6 +344,40 @@ private fun FeedCard(card: FeedCardEntity, onOpen: () -> Unit, onUp: () -> Unit,
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onMore) { Icon(Icons.Filled.MoreVert, contentDescription = "Never show options") }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreCard(card: FeedCardEntity, modifier: Modifier, onOpen: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onMore: () -> Unit) {
+    LaunchedEffect(card.asin) { Graph.feed.impression(card.asin) }
+    Row(
+        modifier.fillMaxWidth().combinedClickable(onClick = onOpen, onLongClick = onMore).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProductImage(card.image, Modifier.size(112.dp), card.title)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(card.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (card.price != null) {
+                    Text(Fmt.money(card.price), style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.width(8.dp))
+                }
+                RatingLine(card.rating, card.reviews)
+            }
+            Text(
+                if (card.wildcard) "Wildcard · " + card.reason.removePrefix("Wildcard — ") else card.reason,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (card.wildcard) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onUp) { Icon(Icons.Filled.ThumbUp, contentDescription = "More like this") }
+                IconButton(onClick = onDown) { Icon(Icons.Filled.ThumbUp, contentDescription = "Less like this", modifier = Modifier.rotate(180f)) }
+                IconButton(onClick = onMore) { Icon(Icons.Filled.MoreVert, contentDescription = "Never show options") }
             }
         }
     }

@@ -166,9 +166,13 @@ class ResultsVm(val query: String) : ViewModel() {
     var loadingMore by mutableStateOf(false)
         private set
 
-    private val raw = ArrayList<Listing>()
+    /** Each Amazon page is ranked on its own and appended, so scrolling never reshuffles what you've seen. */
+    private val pages = ArrayList<List<Listing>>()
     private var page = 1
-    private var hasNext = true
+    var endReached by mutableStateOf(false)
+        private set
+    var moreError by mutableStateOf<String?>(null)
+        private set
     private var hideSponsored = true
     private var personalize = false
     private var hidden = emptySet<String>()
@@ -203,16 +207,17 @@ class ResultsVm(val query: String) : ViewModel() {
 
     private suspend fun load() {
         state = St.Loading
-        raw.clear()
+        pages.clear()
         page = 1
+        endReached = false
+        moreError = null
         when (val r = Graph.shop.search(query, 1)) {
             is Load.Ok -> {
                 if (!r.v.health.ok) {
                     state = St.Fallback(pageUrl)
                     return
                 }
-                raw += r.v.items
-                hasNext = r.v.hasNext
+                pages.add(r.v.items)
                 rerank()
                 state = St.Ready
             }
@@ -227,19 +232,29 @@ class ResultsVm(val query: String) : ViewModel() {
         viewModelScope.launch { load() }
     }
 
+    /** Infinite scroll: keeps asking Amazon for the next page until it stops returning anything new. */
     fun more() {
-        if (loadingMore || !hasNext || state != St.Ready || page >= 8) return
+        if (loadingMore || endReached || state != St.Ready) return
+        if (page >= 40) { endReached = true; return }
         loadingMore = true
+        moreError = null
         viewModelScope.launch {
-            val r = Graph.shop.search(query, page + 1)
-            if (r is Load.Ok && r.v.items.isNotEmpty()) {
-                page++
-                val known = raw.map { it.asin }.toSet()
-                raw += r.v.items.filter { it.asin !in known }
-                hasNext = r.v.hasNext
-                rerank()
-            } else {
-                hasNext = false
+            when (val r = Graph.shop.search(query, page + 1)) {
+                is Load.Ok -> {
+                    val known = pages.flatten().map { it.asin }.toHashSet()
+                    val fresh = r.v.items.filter { it.asin !in known }
+                    if (fresh.isEmpty()) endReached = true
+                    else {
+                        page++
+                        pages.add(fresh)
+                        rerank()
+                    }
+                }
+                is Load.Fail -> moreError = when (r.reason) {
+                    Reason.OFFLINE -> "You're offline."
+                    Reason.CAPTCHA -> "Amazon wants a quick check."
+                    else -> "Couldn't load more."
+                }
             }
             loadingMore = false
         }
@@ -274,10 +289,17 @@ class ResultsVm(val query: String) : ViewModel() {
     }
 
     private fun rerank() {
-        ranked = Ranker.rank(
-            raw,
-            Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize),
-        )
+        val ctx = Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize)
+        val out = ArrayList<Ranked>()
+        val shown = HashSet<String>()
+        for (pg in pages) {
+            for (r in Ranker.rank(pg.filter { it.asin !in shown }, ctx)) {
+                out += r
+                shown += r.item.asin
+                r.similar.forEach { shown += it.asin }
+            }
+        }
+        ranked = out
     }
 }
 
@@ -306,8 +328,8 @@ fun ResultsScreen(nav: NavController, query: String) {
                         snapshotFlow {
                             val info = list.layoutInfo
                             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            info.totalItemsCount > 0 && last >= info.totalItemsCount - 5
-                        }.distinctUntilChanged().collect { if (it) vm.more() }
+                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 6) to info.totalItemsCount
+                        }.distinctUntilChanged().collect { (near, _) -> if (near) vm.more() }
                     }
                     LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                         if (vm.ranked.isEmpty()) {
@@ -340,7 +362,25 @@ fun ResultsScreen(nav: NavController, query: String) {
                                 items(r.similar, key = { r.item.asin + "~" + it.asin }) { s -> SimilarRow(s) { nav.openProduct(s.asin) } }
                             }
                         }
-                        if (vm.loadingMore) item("more") { ResultSkeleton() }
+                        if (vm.loadingMore) item("more") { Column { ResultSkeleton(); ResultSkeleton() } }
+                        vm.moreError?.let { err ->
+                            item("more-error") {
+                                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                    TextButton(onClick = { vm.more() }) { Text("Try again") }
+                                }
+                            }
+                        }
+                        if (vm.endReached) {
+                            item("end") {
+                                Text(
+                                    "That's everything Amazon has for \"$query\".",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }

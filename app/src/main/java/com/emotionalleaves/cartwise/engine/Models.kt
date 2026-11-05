@@ -96,6 +96,8 @@ data class Health(
     val fields: Map<String, Double>,
     val ok: Boolean,
     val url: String,
+    /** Fields the reader had to find another way (e.g. "category:best-sellers-rank"). */
+    val notes: List<String> = emptyList(),
 )
 
 enum class Reason { OFFLINE, TIMEOUT, CAPTCHA, SIGNED_OUT, SENSITIVE, EMPTY, ERROR }

@@ -489,6 +489,7 @@ private fun HealthTab() {
                     Pill(if (h.ok) "OK" else "Fallback", if (h.ok) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
                 }
                 Text("${h.count} found · " + Fmt.ago(h.at), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (h.notes.isNotEmpty()) Text("Found another way: " + h.notes.joinToString(", "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                 h.fields.forEach { (k, v) ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                         Text(k, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(90.dp))

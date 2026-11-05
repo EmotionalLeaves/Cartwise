@@ -61,5 +61,13 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Every search result now has a visible "Why this rank" button (long-press still works), and results animate when hidden or regrouped.
 - Account's sign-in status refreshes when you come back to the screen instead of polling.
 
+## Photos, phone layouts, self-healing reader, infinite scroll
+- **Photos:** Amazon puts grey/transparent placeholder pixels in `src` until a photo scrolls into view. The reader now picks the real photo from `srcset`, `data-src`, `data-a-dynamic-image` or the card's HTML, skips placeholders, and asks Amazon's image server for a sharp ~600 px copy. If a photo truly can't load, the tile shows a small cart icon instead of a blank square.
+- **Titles:** on phone-layout search pages the brand sits in its own heading; the title is now the longest heading (brand kept separately), so cards no longer say just "TCL" or "LG".
+- **Self-healing product pages:** every key field has a fallback that doesn't depend on selectors. Category: breadcrumbs → Best Sellers Rank ("#1,234 in Kitchen & Dining … #12 in Burr Coffee Grinders") → "See Top 100 in" links → the page title. Title, photos, price, rating, review count, delivery, sold by, ships from, returns and the Add to cart button have text-based fallbacks too. Debug → Page reader lists any field that was "found another way".
+- **Fix reports that fit:** "Share this page for fixing" now sends ~15k characters aimed at the missing fields (the page blocks that mention them, plus an outline of the main content), with Amazon's nav bar, ads, scripts and tracking pixels stripped. The old report blew past the share sheet's limit and only contained the nav bar.
+- **Infinite scroll in search:** keeps loading Amazon's next page until it returns nothing new (up to 40 pages), instead of trusting a "next" link the phone layout doesn't have. Each page is ranked on its own and appended, so nothing above you reshuffles. Shows a retry row on errors and an end-of-results line.
+- **Infinite For You:** under the shelves, "More for you" keeps going as you scroll: it rotates through your interests (best match, newest, most reviewed, deeper pages each round) with a wildcard every 4th page, scores everything with the same taste model and Fit cutoff, keeps max 3 cards per brand and 1 in 8 wildcards, and loads one page at a time at least 3 seconds apart.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

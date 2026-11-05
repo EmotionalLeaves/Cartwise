@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,16 +72,25 @@ fun Screen(
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
 @Composable
 fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null) {
+    var failed by remember(url) { mutableStateOf(false) }
     Box(
         modifier.clip(RoundedCornerShape(14.dp)).background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
-        if (url.isNotBlank()) {
+        if (url.isNotBlank() && !failed) {
             AsyncImage(
-                model = url,
+                model = Fmt.image(url, 600),
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Fit,
+                onError = { failed = true },
                 modifier = Modifier.fillMaxSize().padding(6.dp),
+            )
+        } else {
+            Icon(
+                Icons.Filled.ShoppingCart,
+                contentDescription = "No photo",
+                tint = Color(0xFFC9C4B9),
+                modifier = Modifier.size(28.dp),
             )
         }
     }

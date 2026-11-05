@@ -25,6 +25,14 @@ object Extract {
         return (0 until length()).map { optString(it) }.filter { it.isNotBlank() }
     }
 
+    /** Drops Amazon's grey/transparent placeholder pixels so the UI never shows an empty tile as a "photo". */
+    fun cleanImage(u: String): String {
+        val t = u.trim()
+        if (t.isBlank() || t.startsWith("data:") || !t.contains("/images/I/")) return ""
+        if (Regex("(?i)\\.gif(\\?|$)").containsMatchIn(t) || t.contains("grey-pixel") || t.contains("transparent-pixel") || t.contains("01MKUOLsA5L")) return ""
+        return t
+    }
+
     fun guessBrand(title: String): String =
         title.trim().split(' ').firstOrNull()?.trim(',', '-', ':', '|', '(', ')')?.take(30) ?: ""
 
@@ -45,7 +53,7 @@ object Extract {
             unitPrice = Parse.unitPrice(o.optString("unitPrice")),
             rating = Parse.rating(o.optString("rating")),
             reviews = Parse.reviews(o.optString("reviews")),
-            image = o.optString("image"),
+            image = cleanImage(o.optString("image")),
             deliveryText = delivery.take(120),
             deliveryDays = Parse.deliveryDays(delivery),
             prime = o.optBoolean("prime"),
@@ -113,7 +121,7 @@ object Extract {
             priceText = pbPrice,
             listPriceText = j.optString("listPrice"),
             unitPrice = Parse.unitPrice(j.optString("unitPrice")),
-            images = j.optJSONArray("images").strings().distinct(),
+            images = j.optJSONArray("images").strings().map { cleanImage(it) }.filter { it.isNotBlank() }.distinct(),
             rating = Parse.rating(j.optString("rating")),
             reviews = Parse.reviews(j.optString("reviewCount")),
             histogram = j.optJSONArray("histogram").let { a -> if (a == null) emptyList() else (0 until a.length()).map { a.optInt(it) } },
@@ -143,7 +151,9 @@ object Extract {
             "category" to if (p.breadcrumbs.isNotEmpty()) 1.0 else 0.0,
             "add to cart" to if (p.canAddToCart) 1.0 else 0.0,
         )
-        HealthLog.record(Health("product", System.currentTimeMillis(), if (p.title.isNotBlank()) 1 else 0, fields, p.title.isNotBlank(), url))
+        HealthLog.record(
+            Health("product", System.currentTimeMillis(), if (p.title.isNotBlank()) 1 else 0, fields, p.title.isNotBlank(), url, j.optJSONArray("healed").strings()),
+        )
         return p
     }
 
@@ -167,7 +177,7 @@ object Extract {
                 returned = o.optBoolean("returned"),
                 items = o.optJSONArray("items").objects().mapNotNull {
                     val asin = it.optString("asin")
-                    if (asin.isBlank()) null else OrderLine(asin, it.optString("title").trim(), it.optString("image"), Parse.price(it.optString("price")))
+                    if (asin.isBlank()) null else OrderLine(asin, it.optString("title").trim(), cleanImage(it.optString("image")), Parse.price(it.optString("price")))
                 }.filter { it.title.isNotBlank() },
             )
         }
