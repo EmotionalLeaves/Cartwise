@@ -286,7 +286,7 @@ class ResultsVm(val query: String) : ViewModel() {
         rerank()
     }
 
-    fun setSaleOnly(v: Boolean) {
+    fun toggleSaleOnly(v: Boolean) {
         saleOnly = v
         rerank()
     }
@@ -347,7 +347,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                     AmazonPage(s.url, PageMode.RAW, Modifier.weight(1f))
                 }
                 ResultsVm.St.Ready -> Column(Modifier.fillMaxSize()) {
-                    PresetRow(vm.preset, vm.custom != null, onPick = { vm.choose(it) }, onAdjust = { adjust = true }, saleOnly = vm.saleOnly, onSaleOnly = { vm.setSaleOnly(it) })
+                    PresetRow(vm.preset, vm.custom != null, onPick = { vm.choose(it) }, onAdjust = { adjust = true }, saleOnly = vm.saleOnly, onSaleOnly = { vm.toggleSaleOnly(it) })
                     val list = rememberLazyListState()
                     LaunchedEffect(list) {
                         snapshotFlow {
