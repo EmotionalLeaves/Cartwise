@@ -55,5 +55,11 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Debug → Page reader → "Share this page for fixing"** shares a trimmed copy of the page's HTML, the current rules and the field health. Paste it to an AI, put its answer in `config/selectors.json`, bump `version`, commit.
 - Rules file is now version 2.
 
+## Self-check and runtime tests
+- **Account → Run self-check** runs the first on-phone tests in one tap: signed in, rules loaded, search reads 20+ results (title, price, stars, photo, delivery fill %), a product page reads, the cart reads, your Lists read, and whether the on-device model loaded. Anything amber or red has "Share this page for fixing" and "Open page" right under it. The share icon copies the whole result list.
+- Robolectric tests now run in CI on a simulated Android 14 phone: every screen is drawn (For You empty and with shelves, Search, result card and Why this rank, product tabs, watchlist, Interests, quiz, Settings, Debug tabs, Account, Self-check, Cart, raw page), and the taste model runs for real (quiz to interests, kept items to named interests, fit ordering, wipe). Test reports go to the `ci-logs` branch under `tests/`.
+- Every search result now has a visible "Why this rank" button (long-press still works), and results animate when hidden or regrouped.
+- Account's sign-in status refreshes when you come back to the screen instead of polling.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

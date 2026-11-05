@@ -54,6 +54,16 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
         is WebEngine.Res.Fail -> fail(r)
     }
 
+    /** Reads the cart page: item count and the ASINs it holds. */
+    suspend fun cart(): Load<Pair<Int?, List<String>>> = when (val r = engine.run(url("cart"), "cartcount")) {
+        is WebEngine.Res.Ok -> {
+            val arr = r.json.optJSONArray("asins")
+            val asins = if (arr == null) emptyList() else (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+            Load.Ok(Parse.int(r.json.optString("count")) to asins.distinct())
+        }
+        is WebEngine.Res.Fail -> fail(r)
+    }
+
     /**
      * Taps Amazon's real Add to cart button in the hidden engine, then checks the
      * cart to confirm it worked. Never touches Buy Now or checkout.

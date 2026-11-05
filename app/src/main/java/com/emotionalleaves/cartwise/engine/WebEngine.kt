@@ -46,7 +46,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
     data class LogEntry(val time: Long, val kind: String, val url: String, val ms: Long, val result: String)
 
     companion object {
-        fun cleanUa(ua: String): String = ua.replace("; wv)", ")").replace(Regex("""\s?Version/\d+\.\d+"""), "")
+        fun cleanUa(ua: String?): String? = ua?.replace("; wv)", ")")?.replace(Regex("""\s?Version/\d+\.\d+"""), "")
         private const val VIEW_W = 1080
         private const val VIEW_H = 2340
     }
@@ -185,8 +185,8 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
         return if (list.isEmpty()) kind == "orders" else kind in list
     }
 
-    private fun desktopUa(mobile: String): String {
-        val chrome = Regex("""Chrome/[\d.]+""").find(mobile)?.value ?: "Chrome/130.0.0.0"
+    private fun desktopUa(mobile: String?): String {
+        val chrome = Regex("""Chrome/[\d.]+""").find(mobile ?: "")?.value ?: "Chrome/130.0.0.0"
         return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
     }
 

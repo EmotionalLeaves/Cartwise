@@ -316,6 +316,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                         vm.ranked.forEach { r ->
                             item(key = r.item.asin) {
                                 SwipeRow(
+                                    modifier = Modifier.animateItem(),
                                     onHide = {
                                         vm.hide(r.item)
                                         scope.launch { snack.showSnackbar("Hidden from your results") }
@@ -380,7 +381,7 @@ private fun PresetRow(current: Preset, custom: Boolean, onPick: (Preset) -> Unit
 }
 
 @Composable
-private fun SwipeRow(onHide: () -> Unit, onWatch: () -> Unit, content: @Composable () -> Unit) {
+private fun SwipeRow(onHide: () -> Unit, onWatch: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val hide by rememberUpdatedState(onHide)
     val watch by rememberUpdatedState(onWatch)
     val state = rememberSwipeToDismissBoxState(
@@ -394,6 +395,7 @@ private fun SwipeRow(onHide: () -> Unit, onWatch: () -> Unit, content: @Composab
     )
     SwipeToDismissBox(
         state = state,
+        modifier = modifier,
         backgroundContent = {
             val toWatch = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             Box(
@@ -413,7 +415,7 @@ private fun SwipeRow(onHide: () -> Unit, onWatch: () -> Unit, content: @Composab
 }
 
 @Composable
-private fun ResultCard(
+internal fun ResultCard(
     r: Ranked,
     tagSponsored: Boolean,
     expanded: Boolean,
@@ -452,8 +454,11 @@ private fun ResultCard(
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SellerBadge(l.seller)
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(onClick = onLong, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                        Text("Why this rank", style = MaterialTheme.typography.labelMedium)
+                    }
                     if (r.similar.isNotEmpty()) {
-                        Spacer(Modifier.width(4.dp))
                         TextButton(onClick = onToggleSimilar, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                             Text(if (expanded) "Hide similar" else "+${r.similar.size} similar", style = MaterialTheme.typography.labelMedium)
                         }
@@ -484,7 +489,7 @@ private fun SimilarRow(l: Listing, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit, onWatch: () -> Unit) {
+internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit, onWatch: () -> Unit) {
     val explain = listOf(
         "Bayesian rating ${Fmt.stars(r.bayes)} from ${Fmt.stars(r.item.rating)}★ × ${Fmt.count(r.item.reviews)} reviews, vs. others on this page",
         if (r.item.unitPrice != null) "Unit price ${r.item.unitPrice.label()} vs. this page" else "Price ${Fmt.money(r.item.price)} vs. this page",

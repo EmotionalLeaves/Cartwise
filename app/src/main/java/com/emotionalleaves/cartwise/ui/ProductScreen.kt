@@ -163,7 +163,10 @@ fun ProductScreen(nav: NavController, asin: String) {
                     Banner("Simplified view unavailable — showing Amazon's page", "Retry") { vm.load() }
                     AmazonPage(s.url, PageMode.RAW, Modifier.weight(1f))
                 }
-                is ProductVm.St.Ready -> ProductBody(s.p, vm, nav, tab) { tab = it }
+                is ProductVm.St.Ready -> ProductBody(
+                    s.p, nav, vm.pageUrl, vm.adding, vm.watched, vm.blockedSeller,
+                    onAdd = { vm.addToCart() }, onWatch = { vm.toggleWatch() }, tab = tab, onTab = { tab = it },
+                )
             }
         }
     }
@@ -185,7 +188,18 @@ private fun ProductSkeleton() {
 }
 
 @Composable
-private fun ProductBody(p: Product, vm: ProductVm, nav: NavController, tab: Int, onTab: (Int) -> Unit) {
+internal fun ProductBody(
+    p: Product,
+    nav: NavController,
+    pageUrl: String,
+    adding: Boolean,
+    watched: Boolean,
+    blockedSeller: Boolean,
+    onAdd: () -> Unit,
+    onWatch: () -> Unit,
+    tab: Int,
+    onTab: (Int) -> Unit,
+) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         item("images") {
             val imgs = p.images.ifEmpty { listOf("") }
@@ -227,7 +241,7 @@ private fun ProductBody(p: Product, vm: ProductVm, nav: NavController, tab: Int,
                     Fact("Returns", p.returns.ifBlank { "See Amazon's page" })
                     Spacer(Modifier.height(6.dp))
                     SellerBadge(p.seller)
-                    if (vm.blockedSeller) {
+                    if (blockedSeller) {
                         Spacer(Modifier.height(6.dp))
                         Text("You blocked this seller.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -237,11 +251,11 @@ private fun ProductBody(p: Product, vm: ProductVm, nav: NavController, tab: Int,
         item("actions") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { vm.addToCart() },
-                    enabled = !vm.adding && p.canAddToCart,
+                    onClick = onAdd,
+                    enabled = !adding && p.canAddToCart,
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) {
-                    if (vm.adding) {
+                    if (adding) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                         Spacer(Modifier.width(8.dp))
                         Text("Adding…")
@@ -251,14 +265,14 @@ private fun ProductBody(p: Product, vm: ProductVm, nav: NavController, tab: Int,
                         Text(if (p.canAddToCart) "Add to cart" else "Not available here")
                     }
                 }
-                OutlinedButton(onClick = { vm.toggleWatch() }, modifier = Modifier.height(52.dp)) {
-                    Icon(if (vm.watched) Icons.Filled.Check else Icons.Filled.FavoriteBorder, contentDescription = null)
+                OutlinedButton(onClick = onWatch, modifier = Modifier.height(52.dp)) {
+                    Icon(if (watched) Icons.Filled.Check else Icons.Filled.FavoriteBorder, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (vm.watched) "Watching" else "Watch")
+                    Text(if (watched) "Watching" else "Watch")
                 }
             }
             if (!p.canAddToCart) {
-                TextButton(onClick = { nav.openWeb(vm.pageUrl) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Open Amazon's page for buying options") }
+                TextButton(onClick = { nav.openWeb(pageUrl) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Open Amazon's page for buying options") }
             }
         }
         item("tabs") {

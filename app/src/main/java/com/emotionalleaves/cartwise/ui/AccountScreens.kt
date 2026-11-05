@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.emotionalleaves.cartwise.BuildConfig
@@ -48,8 +49,9 @@ fun AccountScreen(nav: NavController) {
     var signedIn by remember { mutableStateOf(Graph.shop.isSignedIn()) }
     var confirmImport by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        while (true) { signedIn = Graph.shop.isSignedIn(); delay(2000) }
+    LifecycleResumeEffect(Unit) {
+        signedIn = Graph.shop.isSignedIn()
+        onPauseOrDispose { }
     }
 
     Screen("Account") { pad ->
@@ -77,6 +79,8 @@ fun AccountScreen(nav: NavController) {
                 }
             }
             item {
+                SettingRow("Run self-check", "Tests sign-in, search, product, cart and Lists in one tap", onClick = { nav.navigate("check") })
+                HorizontalDivider()
                 SettingRow("Your orders", "Amazon's own Orders page", onClick = { nav.openWeb(Graph.shop.url("ordersWeb")) })
                 HorizontalDivider()
                 val imported = prefs?.ordersImported ?: 0L
@@ -455,22 +459,9 @@ private fun HealthTab() {
         sharing = h.kind
         shareError = null
         scope.launch {
-            when (val r = Graph.engine.snapshot(url, h.kind)) {
-                is com.emotionalleaves.cartwise.engine.WebEngine.Res.Ok -> {
-                    val fields = h.fields.entries.joinToString(", ") { "${it.key} ${(it.value * 100).toInt()}%" }
-                    val text = buildString {
-                        appendLine("Cartwise page-reader report. Please update the \"${h.kind}\" selectors in config/selectors.json so the fields below read correctly, and bump \"version\".")
-                        appendLine("Kind: ${h.kind} · items found: ${h.count} · fields filled: $fields")
-                        appendLine("Rules version: ${sel.version} · URL: ${r.url}")
-                        if (h.kind == "orders" || h.kind == "lists") appendLine("(Note to self: this page includes my own order/list details. Check before sharing.)")
-                        appendLine("Current ${h.kind} rules: " + (Graph.selectors.json().optJSONObject(h.kind)?.toString() ?: "{}"))
-                        appendLine()
-                        appendLine("Trimmed page HTML (" + r.json.optInt("length") + " chars before trimming):")
-                        append(r.json.optString("html"))
-                    }
-                    shareText(ctx, text, "Cartwise ${h.kind} page")
-                }
-                is com.emotionalleaves.cartwise.engine.WebEngine.Res.Fail -> shareError = r.message
+            when (val out = PageReport.build(h.kind, url, h)) {
+                is PageReport.Out.Text -> shareText(ctx, out.text, "Cartwise ${h.kind} page")
+                is PageReport.Out.Error -> shareError = out.message
             }
             sharing = null
         }

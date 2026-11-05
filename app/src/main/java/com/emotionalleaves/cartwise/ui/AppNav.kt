@@ -117,6 +117,7 @@ fun AppNav() {
             composable("quiz") { QuizScreen(nav) }
             composable("settings") { SettingsScreen(nav) }
             composable("debug") { DebugScreen(nav) }
+            composable("check") { SelfCheckScreen(nav) }
         }
     }
 }

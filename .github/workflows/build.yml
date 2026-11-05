@@ -40,7 +40,7 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew --no-daemon --stacktrace :app:testReleaseUnitTest :app:assembleRelease 2>&1 | tee build.log
+          ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleRelease 2>&1 | tee build.log
 
       - name: Report compile errors
         if: failure()
@@ -48,6 +48,12 @@ jobs:
           grep -E '^e: |error:|What went wrong|FAILED|Test.*>' -A2 build.log | head -40 | while IFS= read -r line; do
             echo "::error::$line"
           done
+
+      - name: Keep test reports with the log
+        if: always()
+        run: |
+          mkdir -p /tmp/ci/tests
+          find app/build/test-results -name '*.xml' -exec cp {} /tmp/ci/tests/ \; 2>/dev/null || true
 
       - name: Publish build log to ci-logs branch
         if: always()
