@@ -250,7 +250,7 @@ fun ForYouScreen(nav: NavController) {
                 items(vm.more, key = { "m-" + it.asin }) { card ->
                     MoreCard(
                         card,
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier,
                         onOpen = {
                             scope.launch { Graph.feed.opened(card.asin) }
                             nav.openProduct(card.toListing())

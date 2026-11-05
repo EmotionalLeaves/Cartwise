@@ -373,7 +373,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                         vm.ranked.forEach { r ->
                             item(key = r.item.asin) {
                                 SwipeRow(
-                                    modifier = Modifier.animateItem(),
+                                    modifier = Modifier,
                                     onHide = {
                                         vm.hide(r.item)
                                         scope.launch { snack.showSnackbar("Hidden from your results") }

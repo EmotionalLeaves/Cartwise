@@ -94,5 +94,11 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Calmer colors:** the brown accents are gone; amber is only used for discount badges. Result cards show a small ⓘ for "Why this rank" instead of a text button.
 - **Emulator tour:** pushing to the `tour` branch installs the app on an Android 14 emulator in GitHub Actions, drives every screen against live Amazon, and publishes screenshots, the engine timing log, reader health and photo addresses to the `tour-results` branch.
 
+## Verified on the emulator
+- Search results now render with real photos, titles, prices, struck list prices and discount badges (seen on the emulator against live Amazon).
+- Pages read in 1–2 s via the fast path (was 6–7 s). If Amazon answers with its "Sorry, something went wrong" page, the app retries and then falls back to the live browser instead of showing that page.
+- Best-seller pages are read in desktop layout (the phone layout only lists product IDs). Rules file is version 4.
+- Removed the list fade-in animation: it hid rows in the test harness and added nothing.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

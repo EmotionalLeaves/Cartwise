@@ -299,7 +299,7 @@ fun OutletScreen(nav: NavController) {
                     OutletCard(
                         r,
                         watched = watched.any { it.asin == r.l.asin },
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier,
                         onOpen = { nav.openProduct(r.l) },
                         onWatch = {
                             vm.watch(r.l)
