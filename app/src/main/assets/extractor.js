@@ -42,7 +42,7 @@
   // Amazon swaps real photos in late; until then <img src> is a grey or transparent placeholder.
   var IMG_RE = /https?:\/\/[^"'\s,<>]*?\/images\/I\/[A-Za-z0-9+%\-]{6,}\.[^"'\s,<>]*?\.(?:jpe?g|png|webp)/gi;
   function goodImg(u) {
-    return !!u && u.indexOf('data:') !== 0 && /\/images\/I\//.test(u) && !/\.gif(\?|$)/i.test(u) &&
+    return !!u && u.indexOf('data:') !== 0 && /\/images\/I\//.test(u) && !/\.(gif|svg)(\?|$)/i.test(u) &&
       !/(grey-pixel|transparent-pixel|01MKUOLsA5L|11EIQ5IGqaL)/i.test(u);
   }
   function srcsetList(v) {
@@ -518,6 +518,7 @@
       var head = '';
       try { head = (document.body ? document.body.innerText.slice(0, 600) : ''); } catch (e) {}
       r.__robot = /validateCaptcha|Robot Check|Type the characters you see/i.test(document.title + ' ' + head + ' ' + location.href);
+      r.__sorry = /Sorry! Something went wrong/i.test(document.title) || /Meet the dogs of Amazon/i.test(head);
       try { CartwiseBridge.post(id, JSON.stringify(r)); } catch (e) {}
     }
     (function wait() {

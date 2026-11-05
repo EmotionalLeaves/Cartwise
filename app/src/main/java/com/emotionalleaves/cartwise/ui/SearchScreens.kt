@@ -231,6 +231,14 @@ class ResultsVm(val query: String) : ViewModel() {
                 Reason.CAPTCHA, Reason.EMPTY, Reason.ERROR, Reason.SIGNED_OUT -> St.Fallback(r.url ?: pageUrl)
                 else -> St.Failed(r.reason, r.message)
             }
+            // Amazon's transient "something went wrong" page: wait a moment and try once more by itself.
+            if (state is St.Failed && (state as St.Failed).reason == Reason.TIMEOUT) {
+                kotlinx.coroutines.delay(1_500)
+                when (val again = Graph.shop.search(query, 1)) {
+                    is Load.Ok -> if (again.v.health.ok) { pages.add(again.v.items); rerank(); state = St.Ready }
+                    is Load.Fail -> Unit
+                }
+            }
         }
     }
 

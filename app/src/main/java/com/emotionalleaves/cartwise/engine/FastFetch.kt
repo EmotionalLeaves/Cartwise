@@ -28,6 +28,10 @@ object FastFetch {
 
     fun looksSignedOut(finalUrl: String): Boolean = Sensitive.isSignIn(finalUrl)
 
+    /** Amazon's transient "Sorry, something went wrong" page (usually a 503); worth one retry. */
+    fun looksSorry(html: String, status: Int): Boolean =
+        status == 503 || Regex("(?i)<title>\\s*Sorry!\\s*Something went wrong|Meet the dogs of Amazon|dogsofamazon").containsMatchIn(html.take(40_000))
+
     suspend fun get(url: String, userAgent: String, timeoutMs: Int = 12_000): Result = withContext(Dispatchers.IO) {
         var cur = url
         var status = 0

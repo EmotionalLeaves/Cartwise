@@ -39,7 +39,7 @@ object Extract {
     fun cleanImage(u: String): String {
         val t = u.trim()
         if (t.isBlank() || t.startsWith("data:") || !t.contains("/images/I/")) return ""
-        if (Regex("(?i)\\.gif(\\?|$)").containsMatchIn(t) || t.contains("grey-pixel") || t.contains("transparent-pixel") || t.contains("01MKUOLsA5L")) return ""
+        if (Regex("(?i)\\.(gif|svg)(\\?|$)").containsMatchIn(t) || t.contains("grey-pixel") || t.contains("transparent-pixel") || t.contains("01MKUOLsA5L")) return ""
         return t
     }
 

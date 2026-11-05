@@ -253,7 +253,7 @@ fun OutletScreen(nav: NavController) {
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                placeholder = { Text("Search " + vm.section.label.lowercase(Locale.US) + " deals") },
+                placeholder = { Text(if (vm.section == OutletSection.DEALS) "Search today's deals" else "Search " + vm.section.label.lowercase(Locale.US) + " deals") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (text.isNotEmpty()) IconButton(onClick = { text = ""; vm.search("") }) { Icon(Icons.Filled.Clear, contentDescription = "Clear") }

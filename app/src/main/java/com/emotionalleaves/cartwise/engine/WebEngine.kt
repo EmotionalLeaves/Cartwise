@@ -227,10 +227,15 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     /** Fast path: fetch HTML over HTTP, parse it offline. Null means "fall back to the live page". */
     private suspend fun runFast(url: String, kind: String, arg: String, desktop: Boolean): Res? {
         val ua = (if (desktop) desktopUa(view().settings.userAgentString) else view().settings.userAgentString) ?: return null
-        val r = try {
+        var r = try {
             FastFetch.get(url, ua)
         } catch (e: Exception) {
             return Res.Fail(Reason.OFFLINE, "Couldn't reach Amazon (" + (e.message ?: "network error") + ")", url)
+        }
+        if (FastFetch.looksSorry(r.html, r.status)) {
+            delay(1_200)
+            r = try { FastFetch.get(url, ua) } catch (e: Exception) { return null }
+            if (FastFetch.looksSorry(r.html, r.status)) return Res.Fail(Reason.TIMEOUT, "Amazon had a hiccup; try again in a moment", url)
         }
         if (FastFetch.looksSignedOut(r.finalUrl)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", r.finalUrl)
         if (Sensitive.isSensitive(r.finalUrl)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", r.finalUrl)
@@ -294,6 +299,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
                 if (kind in READ_ONLY && url != null) w.stopLoading()
                 val finalUrl = json.optString("__url", cur)
                 if (json.optBoolean("__robot")) return Res.Fail(Reason.CAPTCHA, "Amazon wants to check you're human", finalUrl)
+                if (json.optBoolean("__sorry")) return Res.Fail(Reason.TIMEOUT, "Amazon had a hiccup; try again in a moment", finalUrl)
                 if (json.has("error")) return Res.Fail(Reason.ERROR, json.optString("error"), finalUrl)
                 if (kind != "snapshot") lastUrls.value = lastUrls.value + (kind to finalUrl)
                 return Res.Ok(json, finalUrl)

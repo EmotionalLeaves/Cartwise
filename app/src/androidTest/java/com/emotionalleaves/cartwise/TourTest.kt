@@ -194,6 +194,23 @@ class TourTest {
             rule.waitUntil(120_000) { rule.onAllNodesWithText("Checking…").fetchSemanticsNodes().isEmpty() }
             shot("22-self-check", 1000)
         }
+        step("save-html") {
+            var ua = ""
+            rule.runOnUiThread { ua = Graph.engine.view().settings.userAgentString ?: "" }
+            val pages = mapOf(
+                "bestsellers-electronics" to "https://www.amazon.com/gp/bestsellers/electronics",
+                "deals" to "https://www.amazon.com/s?rh=p_n_deal_type%3A23566064011&page=1",
+                "outlet" to "https://www.amazon.com/s?k=headphones&rh=n%3A517808&page=1",
+                "search-sound-bar" to "https://www.amazon.com/s?k=sound+bar&page=1",
+            )
+            kotlinx.coroutines.runBlocking {
+                for ((name, u) in pages) {
+                    val r = com.emotionalleaves.cartwise.engine.FastFetch.get(u, ua)
+                    dump("html-$name.html", "<!-- ${r.status} ${r.finalUrl} -->\n" + r.html)
+                    kotlinx.coroutines.delay(2000)
+                }
+            }
+        }
         dumpState()
         note("done")
     }
