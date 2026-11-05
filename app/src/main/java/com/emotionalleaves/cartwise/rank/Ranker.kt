@@ -124,7 +124,7 @@ object Ranker {
                 if (sameImg || closeTitle) { idx = i; break }
             }
             if (idx >= 0) sims[idx].add(r.item)
-            else { leaders += r; sims += ArrayList(); leaderToks += toks }
+            else { leaders.add(r); sims.add(ArrayList()); leaderToks.add(toks) }
         }
         return leaders.mapIndexed { i, r -> r.copy(similar = sims[i]) }
     }
