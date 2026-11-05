@@ -32,6 +32,10 @@ object Graph {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** One-line state notes from screens, read by the emulator tour. */
+    val debugLines = MutableStateFlow<List<String>>(emptyList())
+    fun debug(line: String) { debugLines.value = (debugLines.value + (System.currentTimeMillis().toString().takeLast(6) + " " + line)).takeLast(200) }
+
     /** Set when a price alert notification is tapped; the nav host opens that product. */
     val pendingAsin = MutableStateFlow<String?>(null)
 

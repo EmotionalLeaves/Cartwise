@@ -10,6 +10,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
@@ -106,6 +108,7 @@ class TourTest {
             items.put(JSONObject().put("asin", l.asin).put("title", l.title).put("image", l.image).put("price", l.priceText).put("list", l.listPrice ?: JSONObject.NULL).put("sponsored", l.sponsored))
         }
         dump("last-search-items.json", items.toString(2))
+        dump("debug-lines.txt", Graph.debugLines.value.joinToString("\n"))
         dump("session.txt", "cartCount=${AmazonSession.cartCount.value}\nrules=${Graph.selectors.info.value}\nembedder=${Graph.embedder.name}")
     }
 
@@ -162,6 +165,8 @@ class TourTest {
         step("outlet") {
             tab("outlet")
             shot("14-outlet-for-you", 25_000)
+            try { dump("semantics-outlet.txt", rule.onRoot().printToString()) } catch (e: Throwable) { note("semantics: $e") }
+            dumpState()
             clickText("Like new")
             shot("15-outlet-like-new", 15_000)
             clickText("Deals")

@@ -107,14 +107,7 @@ fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription:
 
 @Composable
 fun SkeletonBox(modifier: Modifier) {
-    val t = rememberInfiniteTransition(label = "skeleton")
-    val a by t.animateFloat(
-        initialValue = 0.06f,
-        targetValue = 0.14f,
-        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
-        label = "alpha",
-    )
-    Box(modifier.clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = a)))
+    Box(modifier.clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)))
 }
 
 @Composable

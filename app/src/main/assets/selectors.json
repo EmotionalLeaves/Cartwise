@@ -1,11 +1,12 @@
 {
-  "version": 3,
+  "version": 4,
   "updated": "2026-11-05",
   "notes": "Page-reading rules for Cartwise. Each field is a list of CSS selectors tried in order. Bump 'version' when you edit this file so phones pick it up over the bundled copy.",
   "waitMs": 6000,
   "engine": {
     "desktopKinds": [
-      "orders"
+      "orders",
+      "tiles"
     ],
     "notes": "Page kinds loaded with a desktop browser identity because Amazon's desktop layout is easier to read there."
   },

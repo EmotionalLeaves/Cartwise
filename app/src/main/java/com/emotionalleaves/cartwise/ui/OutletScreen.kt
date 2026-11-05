@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -134,8 +135,16 @@ class OutletVm : ViewModel() {
         loading = true
         error = null
         job = viewModelScope.launch {
-            if (section == OutletSection.FOR_YOU) loadForYou() else loadPage()
+            try {
+                if (section == OutletSection.FOR_YOU) loadForYou() else loadPage()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                error = e.message ?: e.toString()
+                Graph.debug("outlet error " + e)
+            }
             loading = false
+            Graph.debug("outlet ${section.name} q='$query' rows=${rows.size} pages=${pages.size} ended=$ended err=$error fb=$fallbackUrl")
         }
     }
 
@@ -276,7 +285,7 @@ fun OutletScreen(nav: NavController) {
             if (fb != null) {
                 Banner("Simplified view unavailable — showing Amazon's page", "Retry") { vm.restart() }
                 AmazonPage(fb, PageMode.RAW, Modifier.weight(1f))
-            } else LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            } else LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().testTag("outlet-list"), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (vm.noInterests) {
                     item("nointerests") {
                         EmptyState(
