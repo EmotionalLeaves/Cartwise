@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -71,9 +72,10 @@ class TourTest {
         rule.waitUntil(ms) { rule.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
-    private fun tab(label: String) {
-        rule.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
+    private fun tab(route: String) {
+        rule.onNodeWithTag("tab-$route").performClick()
         rule.waitForIdle()
+        Thread.sleep(800)
     }
 
     private fun clickText(t: String, substring: Boolean = false) {
@@ -119,10 +121,10 @@ class TourTest {
             shot("02-quiz")
             clickText("Build my feed", substring = true)
         }
-        step("for-you-refreshing") { shot("03-for-you-refreshing", 8000) }
+        step("for-you-refreshing") { shot("03-for-you-refreshing", 8000); dumpState() }
 
         step("search") {
-            tab("Search")
+            tab("search")
             shot("04-search-empty")
             rule.onAllNodes(hasSetTextAction()).onFirst().performTextInput("sound bar")
             rule.onAllNodes(hasSetTextAction()).onFirst().performImeAction()
@@ -158,7 +160,7 @@ class TourTest {
         }
 
         step("outlet") {
-            tab("Outlet")
+            tab("outlet")
             shot("14-outlet-for-you", 25_000)
             clickText("Like new")
             shot("15-outlet-like-new", 15_000)
@@ -167,15 +169,15 @@ class TourTest {
         }
 
         step("lists") {
-            tab("Lists")
+            tab("lists")
             shot("17-lists")
         }
         step("cart") {
-            tab("Cart")
+            tab("cart")
             shot("18-cart", 8000)
         }
         step("for-you-after") {
-            tab("For You")
+            tab("foryou")
             shot("19-for-you-after", 5000)
             swipe(3)
             shot("20-for-you-more", 15_000)

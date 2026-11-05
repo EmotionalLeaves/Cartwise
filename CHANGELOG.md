@@ -86,5 +86,13 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Prefetch:** after a results page shows, the background browser quietly reads the next page and the top 3 products, so scrolling and tapping usually open instantly from the cache.
 - Rules file is now version 3.
 
+## Fast path, photos, emulator tour
+- **Pages are no longer run in a browser to be read.** Search, product, best-seller, Lists and Orders pages are downloaded as plain HTML with your Amazon cookies and parsed offline, with Amazon's scripts stripped out. That removes almost all of the 6–7 seconds a page took before. The live hidden browser is only used if the fast path is blocked (captcha) or comes back empty, and for Add to cart.
+- **Photos:** the raw HTML carries the real photo addresses; the grey placeholders you saw are inserted by Amazon's scripts, which no longer run. 
+- **Refresh buttons** now run right away in the app and say what happened ("checked N pages; nothing new cleared the bar"). The Cart reload really reloads the page.
+- **Five tabs** (For You, Search, Outlet, Lists, Cart) with a count badge on Cart; your account moved to the top-right of every tab.
+- **Calmer colors:** the brown accents are gone; amber is only used for discount badges. Result cards show a small ⓘ for "Why this rank" instead of a text button.
+- **Emulator tour:** pushing to the `tour` branch installs the app on an Android 14 emulator in GitHub Actions, drives every screen against live Amazon, and publishes screenshots, the engine timing log, reader health and photo addresses to the `tour-results` branch.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

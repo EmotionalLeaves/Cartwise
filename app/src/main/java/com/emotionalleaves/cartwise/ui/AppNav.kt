@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -73,6 +74,7 @@ fun AppNav() {
                 NavigationBar {
                     TABS.forEach { t ->
                         NavigationBarItem(
+                            modifier = Modifier.testTag("tab-" + t.route),
                             selected = tab == t.route,
                             onClick = {
                                 tab = t.route

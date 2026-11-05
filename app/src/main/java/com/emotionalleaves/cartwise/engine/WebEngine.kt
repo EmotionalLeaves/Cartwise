@@ -181,7 +181,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         }
         val ms = SystemClock.elapsedRealtime() - started
         val summary = when (res) {
-            is Res.Ok -> "ok"
+            is Res.Ok -> if (ms < 2500 && kind in FAST) "ok (fast)" else "ok"
             is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
         }
         val entry = LogEntry(System.currentTimeMillis(), "$name · $kind", url ?: (currentUrl ?: ""), ms, summary)
@@ -203,8 +203,67 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     /** Last page address read for each kind, so Debug can share that page's HTML. */
     val lastUrls = MutableStateFlow<Map<String, String>>(emptyMap())
 
+    /** Page kinds read from fetched HTML (fast path). Anything else runs the live page. */
+    private val FAST = setOf("search", "product", "tiles", "lists", "orders")
+
+    /** A separate WebView that never touches the network: it only parses HTML we hand it. */
+    private var parser: WebView? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @MainThread
+    private fun parserView(): WebView = parser ?: WebView(app).also { w ->
+        w.settings.javaScriptEnabled = true
+        w.settings.blockNetworkLoads = true
+        w.settings.blockNetworkImage = true
+        w.settings.loadsImagesAutomatically = false
+        w.addJavascriptInterface(Bridge(), "CartwiseBridge")
+        w.layout(0, 0, VIEW_W, VIEW_H)
+        parser = w
+    }
+
+    @Volatile var fastPathOk = true
+        private set
+
+    /** Fast path: fetch HTML over HTTP, parse it offline. Null means "fall back to the live page". */
+    private suspend fun runFast(url: String, kind: String, arg: String, desktop: Boolean): Res? {
+        val ua = (if (desktop) desktopUa(view().settings.userAgentString) else view().settings.userAgentString) ?: return null
+        val r = try {
+            FastFetch.get(url, ua)
+        } catch (e: Exception) {
+            return Res.Fail(Reason.OFFLINE, "Couldn't reach Amazon (" + (e.message ?: "network error") + ")", url)
+        }
+        if (FastFetch.looksSignedOut(r.finalUrl)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", r.finalUrl)
+        if (Sensitive.isSensitive(r.finalUrl)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", r.finalUrl)
+        if (r.status != 200 || FastFetch.looksBlocked(r.html)) return null
+        val pw = parserView()
+        val done = CompletableDeferred<Unit>()
+        pw.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, u: String?) { done.complete(Unit) }
+        }
+        pw.loadDataWithBaseURL(r.finalUrl, FastFetch.inert(r.html), "text/html", "utf-8", r.finalUrl)
+        withTimeoutOrNull(8_000) { done.await() } ?: return null
+        val out = extract(pw, kind, arg) ?: return null
+        val json = JSONObject(out)
+        if (json.has("error")) return null
+        json.put("__url", r.finalUrl)
+        // Empty read on a page that should have content: let the live page try.
+        val n = when (kind) {
+            "search" -> json.optJSONArray("items")?.length() ?: 0
+            "product" -> if (json.optString("title").isBlank()) 0 else 1
+            "tiles" -> json.optJSONArray("items")?.length() ?: 0
+            else -> 1
+        }
+        if (n == 0) return null
+        lastUrls.value = lastUrls.value + (kind to r.finalUrl)
+        return Res.Ok(json, r.finalUrl)
+    }
+
     private suspend fun runInner(w: WebView, url: String?, kind: String, arg: String, timeoutMs: Long): Res {
         if (!online()) return Res.Fail(Reason.OFFLINE, "You're offline", url)
+        if (url != null && kind in FAST && fastPathOk && !Sensitive.isSensitive(url)) {
+            val fast = runFast(url, kind, arg, wantsDesktop(kind))
+            if (fast != null) return fast
+        }
         val mobileUa = w.settings.userAgentString
         val desktop = url != null && wantsDesktop(kind)
         try {

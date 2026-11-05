@@ -222,12 +222,12 @@ fun QuizScreen(nav: NavController) {
                 Button(
                     onClick = {
                         saving = true
-                        scope.launch {
-                            Graph.taste.applyQuiz(Quiz.CHIPS.filter { it.slug in picked })
+                        val chosen = Quiz.CHIPS.filter { it.slug in picked }
+                        Graph.scope.launch {
+                            Graph.taste.applyQuiz(chosen)
                             Graph.feed.refreshNow(20)
-                            saving = false
-                            nav.navigate("foryou") { popUpTo("foryou") { inclusive = true } }
                         }
+                        nav.popBackStack("foryou", inclusive = false)
                     },
                     enabled = picked.size in 5..10 && !saving,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
