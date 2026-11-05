@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "updated": "2026-11-05",
+  "notes": "Page-reading rules for Cartwise. Each field is a list of CSS selectors tried in order. Bump 'version' when you edit this file so phones pick it up over the bundled copy.",
+  "waitMs": 6000,
+  "urls": {
+    "home": "https://www.amazon.com/",
+    "signin": "https://www.amazon.com/gp/css/homepage.html",
+    "search": "https://www.amazon.com/s?k={q}&page={page}",
+    "searchNew": "https://www.amazon.com/s?k={q}&s=date-desc-rank",
+    "searchPopular": "https://www.amazon.com/s?k={q}&s=review-rank",
+    "product": "https://www.amazon.com/dp/{asin}",
+    "reviews": "https://www.amazon.com/product-reviews/{asin}",
+    "cart": "https://www.amazon.com/gp/cart/view.html",
+    "orders": "https://www.amazon.com/your-orders/orders?timeFilter=year-{year}&startIndex={start}",
+    "ordersWeb": "https://www.amazon.com/gp/css/order-history",
+    "lists": "https://www.amazon.com/hz/wishlist/ls",
+    "bestsellers": "https://www.amazon.com/gp/bestsellers/{slug}",
+    "keepa": "https://keepa.com/#!product/1-{asin}",
+    "camel": "https://camelcamelcamel.com/product/{asin}"
+  },
+  "common": {
+    "cartCount": ["#nav-cart-count", ".nav-cart-count", "#nav-mobile-cart-count", "[data-csa-c-content-id='nav_cart'] .nav-cart-count"]
+  },
+  "search": {
+    "ready": ["div[data-component-type='s-search-result']", "div.s-result-item[data-asin]"],
+    "card": ["div[data-component-type='s-search-result']", "div.s-result-item[data-asin]:not([data-asin=''])"],
+    "link": ["h2 a", "a.a-link-normal.s-no-outline", "a[href*='/dp/']"],
+    "title": ["h2 span", "h2 a span", "[data-cy='title-recipe'] h2", ".a-size-base-plus.a-color-base.a-text-normal", ".a-size-medium.a-color-base.a-text-normal"],
+    "brand": ["[data-cy='title-recipe'] > .a-row .a-size-base-plus.a-color-base", "h5 .a-size-base-plus", ".s-line-clamp-1 > span.a-size-base-plus"],
+    "image": ["img.s-image", "img"],
+    "price": [".a-price:not(.a-text-price) .a-offscreen", ".a-price .a-offscreen", "[data-cy='price-recipe'] .a-offscreen"],
+    "rating": ["[aria-label*='out of 5 stars']", "i[class*='a-star'] span.a-icon-alt", "span.a-icon-alt"],
+    "reviews": ["[aria-label$='ratings']", "[aria-label$='rating']", "a[href*='customerReviews'] span.s-underline-text", "span.a-size-base.s-underline-text", "span.s-underline-text"],
+    "delivery": ["[data-cy='delivery-recipe']", ".udm-primary-delivery-message", "[aria-label*='delivery']"],
+    "prime": ["i.a-icon-prime", "[aria-label='Amazon Prime']", ".s-prime"],
+    "sponsored": [".puis-sponsored-label-text", ".s-sponsored-label-text", "[data-component-type='sp-sponsored-result']", "a[aria-label*='Sponsored']"],
+    "next": [".s-pagination-next:not(.s-pagination-disabled)", "a.s-pagination-next"]
+  },
+  "product": {
+    "ready": ["#productTitle", "#title"],
+    "title": ["#productTitle", "#title", "#title_feature_div h1"],
+    "brand": ["#bylineInfo", "#brand", "#bylineInfo_feature_div a"],
+    "price": ["#corePriceDisplay_mobile_feature_div .priceToPay .a-offscreen", "#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen", ".priceToPay .a-offscreen", "#apex_offerDisplay_mobile .a-price .a-offscreen", "#corePrice_desktop .a-price .a-offscreen", "#price_inside_buybox", "#priceblock_ourprice"],
+    "listPrice": [".basisPrice .a-offscreen", ".a-price.a-text-price[data-a-strike='true'] .a-offscreen", "#listPrice"],
+    "priceBlock": ["#corePriceDisplay_mobile_feature_div", "#corePrice_feature_div", "#apex_offerDisplay_mobile", "#corePrice_desktop"],
+    "images": ["#landingImage", "#imgTagWrapperId img", "#main-image", "img[data-a-image-name='landingImage']", "#image-block img", "#immersive-main-image-container img"],
+    "rating": ["#acrPopover", "[data-hook='rating-out-of-text']", "#averageCustomerReviews .a-icon-alt", "i.a-icon-star span.a-icon-alt"],
+    "reviewCount": ["#acrCustomerReviewText", "[data-hook='total-review-count']", "#acrCustomerReviewLink span"],
+    "histogramRow": ["#histogramTable tr", "#histogramTable li", ".a-histogram-row"],
+    "delivery": ["#mir-layout-DELIVERY_BLOCK", "#deliveryBlockMessage", "#udmDeliveryBlock", "#delivery-block-ags-dcp-container_0"],
+    "soldBy": ["#merchantInfoFeature_feature_div .offer-display-feature-text", "#sellerProfileTriggerId", "#merchant-info", ".tabular-buybox-text[tabular-attribute-name='Sold by']"],
+    "shipsFrom": ["#fulfillerInfoFeature_feature_div .offer-display-feature-text", ".tabular-buybox-text[tabular-attribute-name='Ships from']"],
+    "returns": ["#productSupportAndReturnPolicy-return-policy-anchor-text", "#returnsInfoFeature_feature_div .offer-display-feature-text", "#productSupportAndReturnPolicy_feature_div", "#returnPolicyFeature_feature_div"],
+    "availability": ["#availability", "#outOfStock"],
+    "bullets": ["#feature-bullets li", "#featurebullets_feature_div li", "#productFactsDesktopExpander li", "#productFacts_feature_div li"],
+    "detailRows": ["#productDetails_techSpec_section_1 tr", "#productDetails_detailBullets_sections1 tr", "#detailBullets_feature_div li", "#prodDetails tr", "#productOverview_feature_div tr", "#poExpander tr"],
+    "review": ["[data-hook='review']", "[data-hook='mobley-review-content']", ".review"],
+    "reviewTitle": ["[data-hook='review-title']", ".review-title"],
+    "reviewBody": ["[data-hook='review-body']", ".review-text"],
+    "reviewRating": ["[data-hook='review-star-rating']", "[data-hook='cmps-review-star-rating']", "i[class*='a-star'] .a-icon-alt"],
+    "reviewAuthor": [".a-profile-name"],
+    "reviewDate": ["[data-hook='review-date']"],
+    "breadcrumbs": ["#wayfinding-breadcrumbs_feature_div a", "#wayfinding-breadcrumbs_container a", ".a-breadcrumb a"],
+    "variantOption": ["#twister-plus-inline-twister li[data-asin]", "#twister li[data-defaultasin]", "#twister li[data-dp-url]", "[id^='inline-twister-row-'] li", "#tp-inline-twister-dim-values-container li"],
+    "variantDim": ["[id^='inline-twister-row-']", "[id^='variation_']"],
+    "variantDimTitle": [".inline-twister-dim-title-value-truncate", ".inline-twister-dim-title", "label.a-form-label", ".a-form-label"],
+    "related": ["#sims-fbt", "#similarities_feature_div", "[data-feature-name='similarities']", "#dp-pod-similars", "[cel_widget_id*='sims']", "#anonCarousel1", "#anonCarousel2"],
+    "addToCart": ["#add-to-cart-button", "input[name='submit.add-to-cart']", "#add-to-cart-button-ubb"]
+  },
+  "tiles": {
+    "card": ["li", ".a-carousel-card", "[data-asin]", "#gridItemRoot", ".zg-grid-general-faceout", ".p13n-sc-uncoverable-faceout"],
+    "title": [".p13n-sc-truncate", "[class*='line-clamp']", ".a-truncate-full", ".a-size-base", ".a-size-small"]
+  },
+  "orders": {
+    "ready": [".order-card", ".js-order-card", ".your-orders-content-container", "#ordersContainer"],
+    "card": [".order-card", ".js-order-card", ".a-box-group.order", "#ordersContainer .order"],
+    "status": [".delivery-box__primary-text", ".yohtmlc-shipment-status-primaryText", ".shipment-top-row", ".js-shipment-info-container"],
+    "next": [".a-pagination .a-last:not(.a-disabled) a", "a[aria-label='Next']"]
+  },
+  "lists": {
+    "ready": ["#g-items", "li[data-itemid]", "#wl-mobile-list-container", "a[href*='/hz/wishlist/ls/']"],
+    "listLink": ["#your-lists-nav a[href*='/hz/wishlist/ls/']", "a[id^='wl-list-link']", "#wl-list-entry-container a", "a[href*='/hz/wishlist/ls/']"],
+    "item": ["li[data-itemid]", "#g-items li", ".g-item-sortable"],
+    "itemTitle": ["a[id^='itemName_']", "h2 a", "h3 a", "a[href*='/dp/']"],
+    "itemPrice": [".a-price .a-offscreen", "[id^='itemPrice_'] .a-offscreen"],
+    "listName": ["#profile-list-name", "#wl-list-title", "h1"]
+  },
+  "cart": {
+    "subtotal": ["#sc-subtotal-amount-activecart .a-price .a-offscreen", "#sc-subtotal-amount-activecart", "#sc-subtotal-amount-buybox", "[data-name='Subtotals'] .a-price .a-offscreen", ".sc-subtotal .a-price .a-offscreen", "#sc-mini-buybox .a-price .a-offscreen"],
+    "proceed": ["input[name='proceedToRetailCheckout']", "#sc-buy-box-ptc-button input", "[data-feature-id='proceed-to-checkout-action'] input"],
+    "item": ["#sc-active-cart [data-asin]", "[data-name='Active Items'] [data-asin]", ".sc-list-item[data-asin]"],
+    "css": "[id^='sc-rec'],#rhf,#navFooter,.sc-sss,#sc-new-upsell,#sw-gtc,#ewc-content,.a-carousel-container,#nav-progressive-subnav,.nav-banner,#sc-buy-box-gift-checkbox,[cel_widget_id*='sims'],[data-csa-c-slot-id*='rec']{display:none !important}.a-button,.a-button-input,.a-button-text{min-height:44px !important}.a-button-text{font-size:16px !important;line-height:44px !important}body{padding-bottom:104px !important}"
+  }
+}
