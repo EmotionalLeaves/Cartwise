@@ -95,8 +95,10 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val u = request?.url?.toString() ?: return true
-                return !(u.startsWith("https://") || u.startsWith("http://"))
+                val u = request?.url ?: return true
+                val scheme = u.scheme ?: ""
+                // The hidden engine only ever visits Amazon.
+                return !((scheme == "https" || scheme == "http") && Sensitive.isAmazonHost(u.host ?: ""))
             }
         }
         w.setOnTouchListener { _, _ -> true }
@@ -139,27 +141,41 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
      * Load [url] (or stay on the current page when null) and run the page reader of [kind].
      * Calls are serialized: one page at a time.
      */
-    suspend fun run(url: String?, kind: String, arg: String = "", timeoutMs: Long = 30_000): Res = mutex.withLock {
+    suspend fun run(url: String?, kind: String, arg: String = "", timeoutMs: Long = 30_000): Res =
+        mutex.withLock { withContext(Dispatchers.Main) { runLogged(url, kind, arg, timeoutMs) } }
+
+    /** Runs several page steps back to back without another caller navigating the engine in between. */
+    interface Session {
+        suspend fun run(url: String?, kind: String, arg: String = ""): Res
+    }
+
+    suspend fun <T> session(block: suspend (Session) -> T): T = mutex.withLock {
         withContext(Dispatchers.Main) {
-            val started = SystemClock.elapsedRealtime()
-            val res = try {
-                runInner(view(), url, kind, arg, timeoutMs)
-            } catch (e: TimeoutCancellationException) {
-                Res.Fail(Reason.TIMEOUT, "Amazon took too long to answer", url)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                Res.Fail(Reason.ERROR, e.message ?: e.toString(), url)
-            }
-            val ms = SystemClock.elapsedRealtime() - started
-            val summary = when (res) {
-                is Res.Ok -> "ok"
-                is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
-            }
-            val entry = LogEntry(System.currentTimeMillis(), kind, url ?: (currentUrl ?: ""), ms, summary)
-            log.value = (listOf(entry) + log.value).take(60)
-            res
+            block(object : Session {
+                override suspend fun run(url: String?, kind: String, arg: String): Res = runLogged(url, kind, arg, 30_000)
+            })
         }
+    }
+
+    private suspend fun runLogged(url: String?, kind: String, arg: String, timeoutMs: Long): Res {
+        val started = SystemClock.elapsedRealtime()
+        val res = try {
+            runInner(view(), url, kind, arg, timeoutMs)
+        } catch (e: TimeoutCancellationException) {
+            Res.Fail(Reason.TIMEOUT, "Amazon took too long to answer", url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Res.Fail(Reason.ERROR, e.message ?: e.toString(), url)
+        }
+        val ms = SystemClock.elapsedRealtime() - started
+        val summary = when (res) {
+            is Res.Ok -> "ok"
+            is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
+        }
+        val entry = LogEntry(System.currentTimeMillis(), kind, url ?: (currentUrl ?: ""), ms, summary)
+        log.value = (listOf(entry) + log.value).take(60)
+        return res
     }
 
     private suspend fun runInner(w: WebView, url: String?, kind: String, arg: String, timeoutMs: Long): Res {

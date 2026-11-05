@@ -72,12 +72,20 @@
     var m = /(?:FREE\s+)?(?:delivery|Get it|Arrives|shipping)[^.|]{0,70}/i.exec(text || '');
     return m ? m[0] : '';
   }
-  function cardFor(cfg, a) {
+  function cardFor(cfg, a, root) {
     var T = cfg.tiles || {}; var sels = arr(T.card); var card = null;
+    var bounded = root && root !== document && root.contains;
     for (var i = 0; i < sels.length && !card; i++) {
-      try { var c = a.closest(sels[i]); if (c && txt(c).length < 1500) card = c; } catch (e) {}
+      try {
+        var c = a.closest(sels[i]);
+        if (c && txt(c).length < 1500 && (!bounded || root.contains(c))) card = c;
+      } catch (e) {}
     }
     if (!card) card = (a.parentElement && a.parentElement.parentElement) || a;
+    if (bounded && !root.contains(card)) {
+      var pe = a.parentElement;
+      card = (pe && pe !== root && root.contains(pe)) ? pe : root;
+    }
     return card;
   }
   function tiles(cfg, root) {
@@ -86,7 +94,7 @@
     var links = root.querySelectorAll('a[href*="/dp/"],a[href*="/gp/product/"],a[href*="/gp/aw/d/"]');
     for (var i = 0; i < links.length && i < 600; i++) {
       var a = links[i]; var asin = asinOf(at(a, 'href')); if (!asin) continue;
-      var card = cardFor(cfg, a);
+      var card = cardFor(cfg, a, root);
       var t = map[asin];
       if (!t) { t = map[asin] = { asin: asin, url: abs('/dp/' + asin), title: '', image: '', price: '', rating: '', reviews: '', unitPrice: '' }; order.push(asin); }
       var im = a.querySelector('img') || card.querySelector('img');
@@ -241,7 +249,7 @@
     qa(document, O.card).forEach(function (c) {
       var ct = txt(c);
       var dm = /(?:Order placed|ORDER PLACED)\s*([A-Z][a-z]+\.? \d{1,2}, \d{4})/.exec(ct) || /([A-Z][a-z]+ \d{1,2}, \d{4})/.exec(ct);
-      var id = /\b\d{3}-\d{7}-\d{7}\b/.exec(ct);
+      var id = /\d{3}-\d{7}-\d{7}(?!\d)/.exec(ct);
       var returned = /Return (complete|started|received|in progress|requested|approved)|Refund(ed| issued| complete)|Item returned|\bReturned\b/i.test(ct);
       out.push({
         date: dm ? dm[1] : '',

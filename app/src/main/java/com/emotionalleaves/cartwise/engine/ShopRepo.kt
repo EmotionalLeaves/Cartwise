@@ -58,20 +58,22 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
      * Taps Amazon's real Add to cart button in the hidden engine, then checks the
      * cart to confirm it worked. Never touches Buy Now or checkout.
      */
-    suspend fun addToCart(asin: String): AddResult {
+    suspend fun addToCart(asin: String): AddResult = engine.session { s -> addToCartSteps(s, asin) }
+
+    private suspend fun addToCartSteps(s: WebEngine.Session, asin: String): AddResult {
         val productUrl = url("product", "asin" to asin)
-        val before = when (val r = engine.run(productUrl, "cartcount")) {
+        val before = when (val r = s.run(productUrl, "cartcount")) {
             is WebEngine.Res.Ok -> Parse.int(r.json.optString("count"))
             is WebEngine.Res.Fail -> return AddResult.Failed(r.message)
         }
-        when (val click = engine.run(null, "addtocart")) {
+        when (val click = s.run(null, "addtocart")) {
             is WebEngine.Res.Ok -> if (!click.json.optBoolean("clicked")) {
                 return AddResult.Failed(click.json.optString("reason").ifBlank { "Couldn't find Add to cart" })
             }
             is WebEngine.Res.Fail -> return AddResult.Failed(click.message)
         }
         delay(4_000)
-        return when (val cart = engine.run(url("cart"), "cartcount")) {
+        return when (val cart = s.run(url("cart"), "cartcount")) {
             is WebEngine.Res.Ok -> {
                 val after = Parse.int(cart.json.optString("count"))
                 val arr = cart.json.optJSONArray("asins")
