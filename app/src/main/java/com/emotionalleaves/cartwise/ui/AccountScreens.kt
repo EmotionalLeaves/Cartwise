@@ -442,8 +442,40 @@ private fun OrdersTab() {
 
 @Composable
 private fun HealthTab() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val health by HealthLog.state.collectAsStateWithLifecycle()
     val sel by Graph.selectors.info.collectAsStateWithLifecycle()
+    val lastUrls by Graph.engine.lastUrls.collectAsStateWithLifecycle()
+    var sharing by remember { mutableStateOf<String?>(null) }
+    var shareError by remember { mutableStateOf<String?>(null) }
+
+    fun share(h: com.emotionalleaves.cartwise.engine.Health) {
+        val url = lastUrls[h.kind] ?: h.url
+        sharing = h.kind
+        shareError = null
+        scope.launch {
+            when (val r = Graph.engine.snapshot(url, h.kind)) {
+                is com.emotionalleaves.cartwise.engine.WebEngine.Res.Ok -> {
+                    val fields = h.fields.entries.joinToString(", ") { "${it.key} ${(it.value * 100).toInt()}%" }
+                    val text = buildString {
+                        appendLine("Cartwise page-reader report. Please update the \"${h.kind}\" selectors in config/selectors.json so the fields below read correctly, and bump \"version\".")
+                        appendLine("Kind: ${h.kind} · items found: ${h.count} · fields filled: $fields")
+                        appendLine("Rules version: ${sel.version} · URL: ${r.url}")
+                        if (h.kind == "orders" || h.kind == "lists") appendLine("(Note to self: this page includes my own order/list details. Check before sharing.)")
+                        appendLine("Current ${h.kind} rules: " + (Graph.selectors.json().optJSONObject(h.kind)?.toString() ?: "{}"))
+                        appendLine()
+                        appendLine("Trimmed page HTML (" + r.json.optInt("length") + " chars before trimming):")
+                        append(r.json.optString("html"))
+                    }
+                    shareText(ctx, text, "Cartwise ${h.kind} page")
+                }
+                is com.emotionalleaves.cartwise.engine.WebEngine.Res.Fail -> shareError = r.message
+            }
+            sharing = null
+        }
+    }
+
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             Text(
@@ -452,6 +484,12 @@ private fun HealthTab() {
                 modifier = Modifier.padding(vertical = 12.dp),
             )
             if (health.isEmpty()) Text("Open a search or product to see how well each field is read.", style = MaterialTheme.typography.bodySmall)
+            else Text(
+                "If a field is low, tap \"Share this page for fixing\" and paste it to an AI. It returns updated rules for config/selectors.json.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
         items(health.values.sortedByDescending { it.at }, key = { it.kind }) { h ->
             Column(Modifier.padding(vertical = 10.dp)) {
@@ -472,6 +510,10 @@ private fun HealthTab() {
                     }
                 }
                 Text(h.url, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { share(h) }, enabled = sharing == null, contentPadding = PaddingValues(0.dp)) {
+                    Text(if (sharing == h.kind) "Reading the page…" else "Share this page for fixing")
+                }
+                if (shareError != null && sharing == null) Text(shareError!!, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
             HorizontalDivider()
         }

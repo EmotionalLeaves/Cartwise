@@ -36,16 +36,16 @@ jobs:
             https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite \
             || echo "Model download failed; the app falls back to its built-in embedder."
 
-      - name: Build signed APK
+      - name: Run tests and build signed APK
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew --no-daemon --stacktrace :app:assembleRelease 2>&1 | tee build.log
+          ./gradlew --no-daemon --stacktrace :app:testReleaseUnitTest :app:assembleRelease 2>&1 | tee build.log
 
       - name: Report compile errors
         if: failure()
         run: |
-          grep -E '^e: |error:|What went wrong' -A2 build.log | head -40 | while IFS= read -r line; do
+          grep -E '^e: |error:|What went wrong|FAILED|Test.*>' -A2 build.log | head -40 | while IFS= read -r line; do
             echo "::error::$line"
           done
 

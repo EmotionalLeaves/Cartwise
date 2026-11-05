@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -178,39 +179,93 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
         return res
     }
 
+    /** Page kinds that read better from Amazon's desktop layout (configurable in selectors.json). */
+    private fun wantsDesktop(kind: String): Boolean {
+        val list = selectors.list("engine", "desktopKinds")
+        return if (list.isEmpty()) kind == "orders" else kind in list
+    }
+
+    private fun desktopUa(mobile: String): String {
+        val chrome = Regex("""Chrome/[\d.]+""").find(mobile)?.value ?: "Chrome/130.0.0.0"
+        return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) $chrome Safari/537.36"
+    }
+
+    /** Last page address read for each kind, so Debug can share that page's HTML. */
+    val lastUrls = MutableStateFlow<Map<String, String>>(emptyMap())
+
     private suspend fun runInner(w: WebView, url: String?, kind: String, arg: String, timeoutMs: Long): Res {
         if (!online()) return Res.Fail(Reason.OFFLINE, "You're offline", url)
-        if (url != null) {
-            if (Sensitive.isSensitive(url)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", url)
-            val done = CompletableDeferred<String?>()
-            awaitingStart = true
-            pageDone = done
-            w.loadUrl(url)
-            val err = withTimeout(timeoutMs) { done.await() }
-            if (err != null) return Res.Fail(Reason.OFFLINE, err, url)
-            delay(700)
+        val mobileUa = w.settings.userAgentString
+        val desktop = url != null && wantsDesktop(kind)
+        try {
+            if (url != null) {
+                if (Sensitive.isSensitive(url)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", url)
+                if (desktop) w.settings.userAgentString = desktopUa(mobileUa)
+                val done = CompletableDeferred<String?>()
+                awaitingStart = true
+                pageDone = done
+                w.loadUrl(url)
+                val err = withTimeout(timeoutMs) { done.await() }
+                if (err != null) return Res.Fail(Reason.OFFLINE, err, url)
+                delay(700)
+            }
+            // A page can redirect itself while the reader waits; if the answer never comes, read the new page once more.
+            var attempt = 0
+            while (true) {
+                val cur = w.url ?: currentUrl ?: ""
+                if (Sensitive.isSignIn(cur)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", cur)
+                if (Sensitive.isSensitive(cur)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", cur)
+                val out = extract(w, kind, arg)
+                if (out == null) {
+                    if (attempt++ >= 1) return Res.Fail(Reason.TIMEOUT, "The page didn't finish loading", cur)
+                    delay(1_500)
+                    continue
+                }
+                val json = JSONObject(out)
+                val finalUrl = json.optString("__url", cur)
+                if (json.optBoolean("__robot")) return Res.Fail(Reason.CAPTCHA, "Amazon wants to check you're human", finalUrl)
+                if (json.has("error")) return Res.Fail(Reason.ERROR, json.optString("error"), finalUrl)
+                if (kind != "snapshot") lastUrls.value = lastUrls.value + (kind to finalUrl)
+                return Res.Ok(json, finalUrl)
+            }
+        } finally {
+            if (desktop) w.settings.userAgentString = mobileUa
         }
-        val cur = w.url ?: currentUrl ?: ""
-        if (Sensitive.isSignIn(cur)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", cur)
-        if (Sensitive.isSensitive(cur)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", cur)
+    }
 
+    private suspend fun extract(w: WebView, kind: String, arg: String): String? {
         val id = UUID.randomUUID().toString()
         val d = CompletableDeferred<String>()
         pending[id] = d
         val script = extractorJs + "\n;window.__cartwise(" + JSONObject.quote(kind) + "," + selectors.raw() + "," +
             JSONObject.quote(id) + "," + JSONObject.quote(arg) + ");"
         w.evaluateJavascript(script, null)
-        val out = try {
-            withTimeout(15_000) { d.await() }
+        return try {
+            withTimeoutOrNull(15_000) { d.await() }
         } finally {
             pending.remove(id)
         }
-        val json = JSONObject(out)
-        val finalUrl = json.optString("__url", cur)
-        if (json.optBoolean("__robot")) return Res.Fail(Reason.CAPTCHA, "Amazon wants to check you're human", finalUrl)
-        if (json.has("error")) return Res.Fail(Reason.ERROR, json.optString("error"), finalUrl)
-        return Res.Ok(json, finalUrl)
     }
+
+    /** Trimmed HTML of a page (scripts and styles removed), for fixing selectors. Never for sensitive pages. */
+    suspend fun snapshot(url: String, kind: String): Res {
+        if (Sensitive.isSensitive(url)) return Res.Fail(Reason.SENSITIVE, "Not allowed on this page", url)
+        return mutex.withLock {
+            withContext(Dispatchers.Main) {
+                val w = view()
+                val mobileUa = w.settings.userAgentString
+                val desktop = wantsDesktop(kind)
+                try {
+                    if (desktop) w.settings.userAgentString = desktopUa(mobileUa)
+                    runLoggedNoUa(url)
+                } finally {
+                    if (desktop) w.settings.userAgentString = mobileUa
+                }
+            }
+        }
+    }
+
+    private suspend fun runLoggedNoUa(url: String): Res = runLogged(url, "snapshot", "90000", 30_000)
 
     fun isSignedIn(): Boolean {
         val c = CookieManager.getInstance().getCookie("https://www.amazon.com") ?: return false

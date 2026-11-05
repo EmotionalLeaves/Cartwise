@@ -1,6 +1,6 @@
 package com.emotionalleaves.cartwise.engine
 
-import android.net.Uri
+import java.net.URI
 import java.util.Locale
 
 /**
@@ -15,10 +15,15 @@ object Sensitive {
         "/gp/aw/cart/checkout", "/gc/redeem", "/hz/mycd", "/a/addresses", "/gp/css/account/address",
     )
 
-    private fun path(url: String): String = try {
-        (Uri.parse(url).path ?: "").lowercase(Locale.US)
-    } catch (_: Exception) {
-        url.lowercase(Locale.US)
+    private fun path(url: String): String {
+        val u = url.trim()
+        return try {
+            (URI(u).rawPath ?: "").lowercase(Locale.US)
+        } catch (_: Exception) {
+            // Unparseable: take everything after the host up to ? or #, so we err on the safe side.
+            val afterScheme = u.substringAfter("://", u)
+            ("/" + afterScheme.substringAfter('/', "")).substringBefore('?').substringBefore('#').lowercase(Locale.US)
+        }
     }
 
     fun isSignIn(url: String?): Boolean {
@@ -37,7 +42,8 @@ object Sensitive {
     fun isCart(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         val p = path(url)
-        return p.contains("/cart") && !isSensitive(url)
+        val cartPath = p.contains("/cart") || p == "/gp/aw/c" || p.startsWith("/gp/aw/c/")
+        return cartPath && !isSensitive(url)
     }
 
     fun isAmazonHost(host: String): Boolean {

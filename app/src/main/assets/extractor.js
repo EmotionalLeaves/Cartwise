@@ -304,6 +304,25 @@
     return { clicked: true };
   };
 
+  // Trimmed page HTML for fixing selectors.json: no scripts, styles, svgs or inline images.
+  EX.snapshot = function (cfg, arg) {
+    var root = document.body ? document.body.cloneNode(true) : document.documentElement.cloneNode(true);
+    var drop = root.querySelectorAll('script,style,noscript,svg,iframe,link,template,input[type=hidden]');
+    for (var i = 0; i < drop.length; i++) drop[i].parentNode && drop[i].parentNode.removeChild(drop[i]);
+    var all = root.querySelectorAll('*');
+    for (var j = 0; j < all.length; j++) {
+      var el = all[j];
+      el.removeAttribute('style');
+      var src = el.getAttribute('src');
+      if (src && src.indexOf('data:') === 0) el.setAttribute('src', 'data:');
+      var dyn = el.getAttribute('data-a-dynamic-image');
+      if (dyn && dyn.length > 200) el.setAttribute('data-a-dynamic-image', dyn.slice(0, 200));
+    }
+    var html = root.outerHTML.replace(/\s{2,}/g, ' ');
+    var max = parseInt(arg, 10) || 120000;
+    return { html: html.slice(0, max), length: html.length };
+  };
+
   window.__cartwise = function (kind, cfg, id, arg) {
     var start = Date.now(); var sec = cfg[kind] || {}; var ready = sec.ready; var max = cfg.waitMs || 6000;
     function finish() {

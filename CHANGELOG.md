@@ -45,5 +45,15 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Light and dark themes, skeletons, swipe left to hide / right to watchlist, plain-language settings with one-line explanations, accessibility labels, crash log you can share from Account.
 - **Test:** Use it for a week of real shopping without opening the stock app.
 
+## Hardening (after round 10)
+- Unit tests now run in CI before every APK build: parsing (prices, unit prices, delivery dates, ratings), ranking presets and clone grouping, the sensitive-page rules behind hard rule 3, and the page reader's output on mock Amazon pages (fixtures in `app/src/test/resources/fixtures`, regenerated with `tools/make-fixtures.js`). A failing test blocks the build.
+- Orders are read with Amazon's desktop layout, which reliably links each item to its product page. Which page kinds use it is set by `engine.desktopKinds` in `config/selectors.json`.
+- The engine re-reads a page once if it redirected itself while being read, instead of timing out.
+- Mobile cart URL (`/gp/aw/c`) is recognized for the cart restyle and pinned total.
+- Add to cart runs as one uninterrupted engine session, so a background feed refresh can't navigate away mid-add.
+- The hidden engine refuses to leave Amazon's domains.
+- **Debug → Page reader → "Share this page for fixing"** shares a trimmed copy of the page's HTML, the current rules and the field health. Paste it to an AI, put its answer in `config/selectors.json`, bump `version`, commit.
+- Rules file is now version 2.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.
