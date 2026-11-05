@@ -77,7 +77,7 @@ private fun WatchlistTab(nav: NavController) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
         items(items, key = { it.asin }) { w ->
             Row(
-                Modifier.fillMaxWidth().clickable { nav.openProduct(w.asin) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().clickable { nav.openProduct(w.toListing()) }.padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ProductImage(w.image, Modifier.size(72.dp), w.title)
@@ -209,7 +209,7 @@ private fun AmazonListsTab(nav: NavController) {
                 EmptyState("This list is empty", "Or Cartwise couldn't read it.", "Open Amazon's page") { nav.openWeb(listUrl ?: Graph.shop.url("lists")) }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(s.v.items, key = { it.asin }) { l -> ListRow(l, onOpen = { nav.openProduct(l.asin) }, onWatch = { scope.launch { Watch.add(l) } }) }
+                    items(s.v.items, key = { it.asin }) { l -> ListRow(l, onOpen = { nav.openProduct(l) }, onWatch = { scope.launch { Watch.add(l) } }) }
                 }
             }
         }

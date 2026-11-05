@@ -20,6 +20,8 @@ class MainActivity : ComponentActivity() {
         val root = FrameLayout(this)
         // The hidden page-reading engine sits behind the UI, fully transparent and untouchable.
         Graph.engine.attach(root)
+        Graph.bgEngine.attach(root)
+        Graph.engine.warmUp()
         val compose = ComposeView(this).apply {
             setContent {
                 val prefs by Graph.settings.prefs.collectAsStateWithLifecycle(initialValue = null)
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         Graph.engine.detach()
+        Graph.bgEngine.detach()
         super.onDestroy()
     }
 }

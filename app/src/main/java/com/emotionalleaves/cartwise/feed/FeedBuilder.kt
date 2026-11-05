@@ -124,7 +124,7 @@ class FeedBuilder(
         for (w in watches) {
             if (blocked || !budget.take()) break
             step("Checking the price of " + Fmt.short(w.title, 30))
-            when (val r = shop.product(w.asin)) {
+            when (val r = shop.product(w.asin, maxAgeMs = 0)) {
                 is Load.Ok -> cands += checkWatch(w, r.v, now)
                 is Load.Fail -> stopOn(r)
             }
@@ -133,7 +133,7 @@ class FeedBuilder(
         // 3. Your Amazon Lists: price drops on things you already want.
         if (!blocked && shop.isSignedIn() && budget.take()) {
             step("Checking your Lists")
-            when (val r = shop.lists(null)) {
+            when (val r = shop.lists(null, maxAgeMs = 0)) {
                 is Load.Ok -> {
                     val listed = dao.refsWithType(SignalType.LISTED).toSet()
                     for (l in r.v.items) {

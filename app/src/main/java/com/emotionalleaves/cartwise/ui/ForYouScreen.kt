@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 
-/** The endless "More for you" stream under the shelves. One Amazon page per batch, at least 3 s apart. */
+/** The endless "More for you" stream under the shelves. One Amazon page per batch, at least 2 s apart, started well before you reach the bottom. */
 class ForYouVm : ViewModel() {
     val more = mutableStateListOf<FeedCardEntity>()
     var loading by mutableStateOf(false)
@@ -74,7 +74,7 @@ class ForYouVm : ViewModel() {
             var tries = 0
             while (added == 0 && tries < 3 && !exhausted) {
                 tries++
-                val wait = 3_000 - (System.currentTimeMillis() - lastLoad)
+                val wait = 2_000 - (System.currentTimeMillis() - lastLoad)
                 if (wait > 0) delay(wait)
                 val exclude = shelf.map { it.asin }.toHashSet().apply { more.forEach { add(it.asin) } }
                 val res = Graph.feed.more(step++, exclude)
@@ -134,7 +134,7 @@ fun ForYouScreen(nav: NavController) {
         snapshotFlow {
             val info = list.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 4) to info.totalItemsCount
+            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 7) to info.totalItemsCount
         }.distinctUntilChanged().collect { (near, _) -> if (near && !refreshing) vm.loadMore(cardsNow) }
     }
 
@@ -206,7 +206,7 @@ fun ForYouScreen(nav: NavController) {
                                     card,
                                     onOpen = {
                                         scope.launch { Graph.feed.opened(card.asin) }
-                                        nav.openProduct(card.asin)
+                                        nav.openProduct(card.toListing())
                                     },
                                     onUp = { scope.launch { Graph.feed.thumb(card, true) } },
                                     onDown = { scope.launch { Graph.feed.thumb(card, false) } },
@@ -249,7 +249,7 @@ fun ForYouScreen(nav: NavController) {
                         modifier = Modifier.animateItem(),
                         onOpen = {
                             scope.launch { Graph.feed.opened(card.asin) }
-                            nav.openProduct(card.asin)
+                            nav.openProduct(card.toListing())
                         },
                         onUp = { scope.launch { Graph.feed.thumb(card, true) } },
                         onDown = { vm.remove(card.asin); scope.launch { Graph.feed.thumb(card, false) } },
@@ -316,7 +316,7 @@ private fun FeedCard(card: FeedCardEntity, onOpen: () -> Unit, onUp: () -> Unit,
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Column {
-            ProductImage(card.image, Modifier.fillMaxWidth().height(196.dp), card.title)
+            ProductImage(card.image, Modifier.fillMaxWidth().height(196.dp), card.title, px = 500)
             Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(card.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.height(40.dp))
                 Spacer(Modifier.height(6.dp))

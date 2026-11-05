@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -28,6 +29,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.emotionalleaves.cartwise.Graph
+import com.emotionalleaves.cartwise.engine.NetBlock
 import com.emotionalleaves.cartwise.engine.Sensitive
 import com.emotionalleaves.cartwise.engine.WebEngine
 import org.json.JSONArray
@@ -87,6 +89,21 @@ fun AmazonPage(
                         }
                     }
                     webViewClient = object : WebViewClient() {
+                        @Volatile var pageUrl: String = url
+
+                        // Ads and trackers are skipped on ordinary pages so they load faster.
+                        // Sign-in, payment and checkout pages are left completely alone.
+                        override fun shouldInterceptRequest(v: WebView?, r: WebResourceRequest?): WebResourceResponse? {
+                            val req = r ?: return null
+                            if (req.isForMainFrame) {
+                                pageUrl = req.url?.toString() ?: pageUrl
+                                return null
+                            }
+                            if (Sensitive.isSensitive(pageUrl)) return null
+                            val u = req.url ?: return null
+                            return if (NetBlock.blocks(u.host ?: "", u.path ?: "")) NetBlock.empty() else null
+                        }
+
                         override fun shouldOverrideUrlLoading(v: WebView?, r: WebResourceRequest?): Boolean {
                             val req = r ?: return false
                             if (!req.isForMainFrame) return false
@@ -102,6 +119,7 @@ fun AmazonPage(
                         }
 
                         override fun onPageStarted(v: WebView?, u: String?, favicon: Bitmap?) {
+                            if (u != null) pageUrl = u
                             canBack = v?.canGoBack() == true
                             if (u != null) urlCb(u)
                         }

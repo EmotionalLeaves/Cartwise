@@ -71,7 +71,7 @@ fun AccountScreen(nav: NavController) {
                         )
                         Spacer(Modifier.height(12.dp))
                         if (signedIn) {
-                            OutlinedButton(onClick = { Graph.engine.signOut(); signedIn = false }) { Text("Sign out") }
+                            OutlinedButton(onClick = { Graph.engine.signOut(); com.emotionalleaves.cartwise.engine.ShopRepo.clearCache(); signedIn = false }) { Text("Sign out") }
                         } else {
                             Button(onClick = { nav.navigate("login") }) { Text("Sign in to Amazon") }
                         }
@@ -514,7 +514,9 @@ private fun HealthTab() {
 
 @Composable
 private fun EngineTab() {
-    val log by Graph.engine.log.collectAsStateWithLifecycle()
+    val fg by Graph.engine.log.collectAsStateWithLifecycle()
+    val bg by Graph.bgEngine.log.collectAsStateWithLifecycle()
+    val log = remember(fg, bg) { (fg + bg).sortedByDescending { it.time }.take(80) }
     LazyColumn(Modifier.fillMaxSize()) {
         if (log.isEmpty()) item { Text("No pages loaded yet in this session.", modifier = Modifier.padding(16.dp)) }
         items(log) { e ->

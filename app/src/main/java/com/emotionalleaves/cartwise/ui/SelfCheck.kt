@@ -61,6 +61,7 @@ class SelfCheckVm : ViewModel() {
         if (running) return
         running = true
         for (i in steps.indices) steps[i] = Step(steps[i].title)
+        com.emotionalleaves.cartwise.engine.ShopRepo.clearCache()
         viewModelScope.launch {
             val signedIn = Graph.shop.isSignedIn()
             set(0, steps[0].copy(status = if (signedIn) Status.PASS else Status.WARN,

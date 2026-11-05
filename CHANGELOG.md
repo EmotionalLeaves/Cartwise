@@ -69,5 +69,15 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Infinite scroll in search:** keeps loading Amazon's next page until it returns nothing new (up to 40 pages), instead of trusting a "next" link the phone layout doesn't have. Each page is ranked on its own and appended, so nothing above you reshuffles. Shows a retry row on errors and an end-of-results line.
 - **Infinite For You:** under the shelves, "More for you" keeps going as you scroll: it rotates through your interests (best match, newest, most reviewed, deeper pages each round) with a wildcard every 4th page, scores everything with the same taste model and Fit cutoff, keeps max 3 cards per brand and 1 in 8 wildcards, and loads one page at a time at least 3 seconds apart.
 
+## Faster loading
+- Pages are read as soon as their HTML is parsed instead of after every image, ad and script finishes; the rest of the page is then cancelled. Product pages get one short second look only if price, delivery or photos were still filling in.
+- Ads, trackers, telemetry, web fonts and video are skipped in the hidden browsers, and on ordinary visible pages like the cart. Sign-in, payment and checkout pages are never touched.
+- Two hidden browsers: one for what you tap, one for feed refreshes, "More for you", price checks and order import, so your taps never wait behind background work.
+- The connection to Amazon is opened when the app starts, so the first search doesn't pay for it.
+- Search, product, best-seller and Lists pages are kept for a few minutes: going back or reopening is instant. Price checks and the self-check always read fresh.
+- Tapping a product shows its photo, title, price and stars instantly while delivery, seller and options load.
+- Photos are fetched at the size they're shown, kept in a 200 MB disk cache, and fade in.
+- Infinite scroll starts loading the next page well before you reach the bottom.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

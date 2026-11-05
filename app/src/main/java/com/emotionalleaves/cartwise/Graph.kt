@@ -46,13 +46,21 @@ object Graph {
     }
     val settings: Settings by lazy { Settings(app) }
     val selectors: SelectorStore by lazy { SelectorStore(app) }
-    val engine: WebEngine by lazy { WebEngine(app, selectors) }
+    /** Hidden browser for things you tap. */
+    val engine: WebEngine by lazy { WebEngine(app, selectors, "you") }
     val shop: ShopRepo by lazy { ShopRepo(engine, selectors) }
+
+    /** Second hidden browser for feed refreshes, "More for you", price checks and order import, so they never make you wait. */
+    val bgEngine: WebEngine by lazy { WebEngine(app, selectors, "background") }
+    val bgShop: ShopRepo by lazy { ShopRepo(bgEngine, selectors) }
+
+    /** What you tapped (photo, title, price), shown instantly while the full product page loads. */
+    val previews = java.util.concurrent.ConcurrentHashMap<String, Listing>()
     val embedder: Embedder by lazy { Embedder(app) }
     val signals: SignalLog by lazy { SignalLog(db.dao()) }
     val taste: TasteModel by lazy { TasteModel(db, embedder, settings, signals) }
-    val feed: FeedBuilder by lazy { FeedBuilder(app, db, shop, taste, signals, settings) }
-    val orders: OrderImporter by lazy { OrderImporter(shop, db, signals, settings) }
+    val feed: FeedBuilder by lazy { FeedBuilder(app, db, bgShop, taste, signals, settings) }
+    val orders: OrderImporter by lazy { OrderImporter(bgShop, db, signals, settings) }
 }
 
 /** Watchlist actions shared by several screens. */

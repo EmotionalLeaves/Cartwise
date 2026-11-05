@@ -71,7 +71,7 @@ fun Screen(
 
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
 @Composable
-fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null) {
+fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400) {
     var failed by remember(url) { mutableStateOf(false) }
     Box(
         modifier.clip(RoundedCornerShape(14.dp)).background(Color.White),
@@ -79,7 +79,7 @@ fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription:
     ) {
         if (url.isNotBlank() && !failed) {
             AsyncImage(
-                model = Fmt.image(url, 600),
+                model = Fmt.image(url, px),
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Fit,
                 onError = { failed = true },
@@ -288,6 +288,20 @@ fun shareText(c: Context, text: String, subject: String = "Cartwise") {
 }
 
 fun NavController.openProduct(asin: String) = navigate("product/$asin")
+
+/** Opens a product and shows what we already know about it instantly while the full page loads. */
+fun NavController.openProduct(l: com.emotionalleaves.cartwise.engine.Listing) {
+    if (l.title.isNotBlank()) com.emotionalleaves.cartwise.Graph.previews[l.asin] = l
+    navigate("product/" + l.asin)
+}
+
+fun com.emotionalleaves.cartwise.data.FeedCardEntity.toListing() = com.emotionalleaves.cartwise.engine.Listing(
+    asin = asin, title = title, price = price, rating = rating, reviews = reviews, image = image, brand = brand,
+)
+
+fun com.emotionalleaves.cartwise.data.WatchEntity.toListing() = com.emotionalleaves.cartwise.engine.Listing(
+    asin = asin, title = title, price = price, image = image,
+)
 
 fun NavController.openWeb(url: String, banner: String = "") =
     navigate("web?url=" + Uri.encode(url) + "&banner=" + Uri.encode(banner))

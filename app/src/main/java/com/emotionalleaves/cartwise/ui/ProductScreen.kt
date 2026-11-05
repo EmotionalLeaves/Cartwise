@@ -157,7 +157,7 @@ fun ProductScreen(nav: NavController, asin: String) {
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (val s = vm.state) {
-                ProductVm.St.Loading -> ProductSkeleton()
+                ProductVm.St.Loading -> ProductSkeleton(Graph.previews[asin])
                 is ProductVm.St.Failed -> ErrorState(s.reason, s.message, onRetry = { vm.load() }, onOpenPage = { nav.openWeb(vm.pageUrl) })
                 is ProductVm.St.Fallback -> Column(Modifier.fillMaxSize()) {
                     Banner("Simplified view unavailable — showing Amazon's page", "Retry") { vm.load() }
@@ -172,16 +172,34 @@ fun ProductScreen(nav: NavController, asin: String) {
     }
 }
 
+/** While the full page loads, show what you tapped (photo, title, price, stars) right away. */
 @Composable
-private fun ProductSkeleton() {
+internal fun ProductSkeleton(preview: com.emotionalleaves.cartwise.engine.Listing? = null) {
     Column(Modifier.padding(16.dp)) {
-        SkeletonBox(Modifier.fillMaxWidth().height(300.dp))
+        if (preview != null && preview.image.isNotBlank()) {
+            ProductImage(preview.image, Modifier.fillMaxWidth().height(300.dp), preview.title, px = 1000)
+        } else {
+            SkeletonBox(Modifier.fillMaxWidth().height(300.dp))
+        }
         Spacer(Modifier.height(16.dp))
-        SkeletonBox(Modifier.fillMaxWidth().height(20.dp))
-        Spacer(Modifier.height(8.dp))
-        SkeletonBox(Modifier.fillMaxWidth(0.6f).height(20.dp))
-        Spacer(Modifier.height(16.dp))
-        SkeletonBox(Modifier.width(120.dp).height(30.dp))
+        if (preview != null) {
+            if (preview.brand.isNotBlank()) Text(preview.brand, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(preview.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
+            PriceLine(preview.price, preview.priceText, preview.unitPrice, big = true)
+            Spacer(Modifier.height(8.dp))
+            RatingLine(preview.rating, preview.reviews)
+            Spacer(Modifier.height(12.dp))
+            Text("Loading delivery, seller and options…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        } else {
+            SkeletonBox(Modifier.fillMaxWidth().height(20.dp))
+            Spacer(Modifier.height(8.dp))
+            SkeletonBox(Modifier.fillMaxWidth(0.6f).height(20.dp))
+            Spacer(Modifier.height(16.dp))
+            SkeletonBox(Modifier.width(120.dp).height(30.dp))
+        }
         Spacer(Modifier.height(16.dp))
         SkeletonBox(Modifier.fillMaxWidth().height(120.dp))
     }
@@ -204,7 +222,7 @@ internal fun ProductBody(
         item("images") {
             val imgs = p.images.ifEmpty { listOf("") }
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(imgs) { u -> ProductImage(u, Modifier.size(width = if (imgs.size > 1) 300.dp else 360.dp, height = 300.dp), p.title) }
+                items(imgs) { u -> ProductImage(u, Modifier.size(width = if (imgs.size > 1) 300.dp else 360.dp, height = 300.dp), p.title, px = 1000) }
             }
         }
         item("summary") {

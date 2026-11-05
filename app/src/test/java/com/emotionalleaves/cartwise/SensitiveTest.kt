@@ -36,4 +36,16 @@ class SensitiveTest {
         assertFalse(Sensitive.isAmazonHost("evilamazon.com"))
         assertFalse(Sensitive.isAmazonHost("amazon.com.evil.net"))
     }
+
+    @Test fun adsAndTrackersAreSkippedButNotPagesOrPhotos() {
+        val nb = com.emotionalleaves.cartwise.engine.NetBlock
+        assertTrue(nb.blocks("aax-us-east.amazon-adsystem.com", "/x/px"))
+        assertTrue(nb.blocks("fls-na.amazon.com", "/1/batch/1/OE/"))
+        assertTrue(nb.blocks("www.amazon.com", "/uedata/x"))
+        assertTrue(nb.blocks("m.media-amazon.com", "/images/S/sash/font.woff2"))
+        assertFalse(nb.blocks("www.amazon.com", "/s"))
+        assertFalse(nb.blocks("www.amazon.com", "/dp/B0AAAAAAA1"))
+        assertFalse(nb.blocks("m.media-amazon.com", "/images/I/71abc._AC_SL500_.jpg"))
+        assertFalse(nb.blocks("www.amazon.com", "/gp/cart/view.html"))
+    }
 }

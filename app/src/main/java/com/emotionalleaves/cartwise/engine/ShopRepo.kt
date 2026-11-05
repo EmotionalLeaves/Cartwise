@@ -8,6 +8,27 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
 
     companion object {
         fun enc(s: String): String = URLEncoder.encode(s.trim(), "UTF-8")
+
+        private class Entry(val at: Long, val value: Any)
+
+        /** Pages read in the last few minutes, shared by both engines: going back or reopening is instant. */
+        private val cache = object : LinkedHashMap<String, Entry>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>?): Boolean = size > 80
+        }
+
+        fun clearCache() = synchronized(cache) { cache.clear() }
+        fun forget(prefix: String) = synchronized(cache) { cache.keys.removeAll { it.startsWith(prefix) } }
+
+        private const val MIN = 60_000L
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private suspend fun <T : Any> cached(key: String, ttlMs: Long, load: suspend () -> Load<T>): Load<T> {
+        val now = System.currentTimeMillis()
+        synchronized(cache) { cache[key] }?.let { if (now - it.at < ttlMs) return Load.Ok(it.value as T) }
+        val r = load()
+        if (r is Load.Ok) synchronized(cache) { cache[key] = Entry(now, r.v) }
+        return r
     }
 
     fun url(name: String, vararg values: Pair<String, String>) = selectors.url(name, *values)
@@ -19,12 +40,16 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
     suspend fun search(query: String, page: Int): Load<SearchPage> =
         searchUrl(url("search", "q" to enc(query), "page" to page.toString()))
 
-    suspend fun searchUrl(u: String): Load<SearchPage> = when (val r = engine.run(u, "search")) {
-        is WebEngine.Res.Ok -> Load.Ok(Extract.searchPage(r.json, r.url))
-        is WebEngine.Res.Fail -> fail(r)
+    suspend fun searchUrl(u: String): Load<SearchPage> = cached("search:$u", 5 * MIN) {
+        when (val r = engine.run(u, "search")) {
+            is WebEngine.Res.Ok -> Load.Ok(Extract.searchPage(r.json, r.url))
+            is WebEngine.Res.Fail -> fail(r)
+        }
     }
 
-    suspend fun product(asin: String): Load<Product> {
+    suspend fun product(asin: String, maxAgeMs: Long = 5 * MIN): Load<Product> = cached("product:$asin", maxAgeMs) { productFresh(asin) }
+
+    private suspend fun productFresh(asin: String): Load<Product> {
         val u = url("product", "asin" to asin)
         return when (val r = engine.run(u, "product")) {
             is WebEngine.Res.Ok -> {
@@ -36,16 +61,20 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
         }
     }
 
-    suspend fun tiles(u: String): Load<List<Listing>> = when (val r = engine.run(u, "tiles")) {
-        is WebEngine.Res.Ok -> Load.Ok(Extract.tiles(r.json, r.url))
-        is WebEngine.Res.Fail -> fail(r)
+    suspend fun tiles(u: String): Load<List<Listing>> = cached("tiles:$u", 30 * MIN) {
+        when (val r = engine.run(u, "tiles")) {
+            is WebEngine.Res.Ok -> Load.Ok(Extract.tiles(r.json, r.url))
+            is WebEngine.Res.Fail -> fail(r)
+        }
     }
 
-    suspend fun lists(listUrl: String?): Load<ListsPage> {
+    suspend fun lists(listUrl: String?, maxAgeMs: Long = 2 * MIN): Load<ListsPage> {
         val u = listUrl ?: url("lists")
-        return when (val r = engine.run(u, "lists")) {
-            is WebEngine.Res.Ok -> Load.Ok(Extract.lists(r.json, r.url))
-            is WebEngine.Res.Fail -> fail(r)
+        return cached("lists:$u", maxAgeMs) {
+            when (val r = engine.run(u, "lists")) {
+                is WebEngine.Res.Ok -> Load.Ok(Extract.lists(r.json, r.url))
+                is WebEngine.Res.Fail -> fail(r)
+            }
         }
     }
 

@@ -12,6 +12,7 @@ import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -22,6 +23,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -36,7 +39,7 @@ import java.util.concurrent.ConcurrentHashMap
  * under your own login (shared cookies), runs the bundled page reader, and hands back JSON.
  * It never runs anything on sign-in, payment or checkout pages.
  */
-class WebEngine(private val app: Context, private val selectors: SelectorStore) {
+class WebEngine(private val app: Context, private val selectors: SelectorStore, val name: String = "foreground") {
 
     sealed class Res {
         data class Ok(val json: JSONObject, val url: String) : Res()
@@ -93,6 +96,13 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
                 if (request?.isForMainFrame == true) {
                     pageDone?.complete("Couldn't reach Amazon (" + (error?.description ?: "network error") + ")")
                 }
+            }
+
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                val r = request ?: return null
+                if (r.isForMainFrame) return null
+                val u = r.url ?: return null
+                return if (NetBlock.blocks(u.host ?: "", u.path ?: "")) NetBlock.empty() else null
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -174,7 +184,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
             is Res.Ok -> "ok"
             is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
         }
-        val entry = LogEntry(System.currentTimeMillis(), kind, url ?: (currentUrl ?: ""), ms, summary)
+        val entry = LogEntry(System.currentTimeMillis(), "$name · $kind", url ?: (currentUrl ?: ""), ms, summary)
         log.value = (listOf(entry) + log.value).take(60)
         return res
     }
@@ -201,13 +211,8 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
             if (url != null) {
                 if (Sensitive.isSensitive(url)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", url)
                 if (desktop) w.settings.userAgentString = desktopUa(mobileUa)
-                val done = CompletableDeferred<String?>()
-                awaitingStart = true
-                pageDone = done
-                w.loadUrl(url)
-                val err = withTimeout(timeoutMs) { done.await() }
+                val err = loadParsed(w, url, timeoutMs)
                 if (err != null) return Res.Fail(Reason.OFFLINE, err, url)
-                delay(700)
             }
             // A page can redirect itself while the reader waits; if the answer never comes, read the new page once more.
             var attempt = 0
@@ -221,7 +226,13 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
                     delay(1_500)
                     continue
                 }
-                val json = JSONObject(out)
+                var json = JSONObject(out)
+                // Read at "HTML parsed"; if a product's key fields were still filling in, give it one short second look.
+                if (kind == "product" && url != null && needsSecondLook(json) && pageDone?.isCompleted == false) {
+                    withTimeoutOrNull(3_000) { pageDone?.await() }
+                    extract(w, kind, arg)?.let { again -> json = JSONObject(again) }
+                }
+                if (kind in READ_ONLY && url != null) w.stopLoading()
                 val finalUrl = json.optString("__url", cur)
                 if (json.optBoolean("__robot")) return Res.Fail(Reason.CAPTCHA, "Amazon wants to check you're human", finalUrl)
                 if (json.has("error")) return Res.Fail(Reason.ERROR, json.optString("error"), finalUrl)
@@ -233,6 +244,55 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
         }
     }
 
+    /** Kinds that only read a page; once read, the rest of the page (ads, images, scripts) is cancelled. */
+    private val READ_ONLY = setOf("search", "product", "tiles", "lists", "orders", "snapshot")
+
+    private fun needsSecondLook(j: JSONObject): Boolean =
+        j.optString("price").isBlank() || j.optString("delivery").isBlank() || (j.optJSONArray("images")?.length() ?: 0) == 0
+
+    private suspend fun evalString(w: WebView, js: String, waitMs: Long = 1_000): String? = withTimeoutOrNull(waitMs) {
+        suspendCancellableCoroutine { c ->
+            w.evaluateJavascript(js) { r -> if (c.isActive) c.resume(r?.trim('"') ?: "") }
+        }
+    }
+
+    /**
+     * Starts loading [url] and returns as soon as the new page's HTML is parsed
+     * (document.readyState is "interactive"), instead of waiting for every image, ad and script.
+     * Returns an error message, or null when the page is ready to read.
+     */
+    private suspend fun loadParsed(w: WebView, url: String, timeoutMs: Long): String? {
+        // Mark the current document so we can tell when the new one has replaced it.
+        evalString(w, "window.__cwOld=1;'ok'", 500)
+        val done = CompletableDeferred<String?>()
+        awaitingStart = true
+        pageDone = done
+        w.loadUrl(url)
+        return withTimeout(timeoutMs) {
+            var result: String? = null
+            while (true) {
+                if (done.isCompleted) { result = done.await(); break }
+                if (!awaitingStart) {
+                    val st = evalString(w, "(window.__cwOld?'old':document.readyState)", 800)
+                    if (st == "interactive" || st == "complete") break
+                }
+                delay(120)
+            }
+            result
+        }
+    }
+
+    /** Opens a connection to Amazon early so the first real page loads faster. */
+    @MainThread
+    fun warmUp() {
+        if (!mutex.tryLock()) return
+        try {
+            view().loadUrl("https://www.amazon.com/favicon.ico")
+        } finally {
+            mutex.unlock()
+        }
+    }
+
     private suspend fun extract(w: WebView, kind: String, arg: String): String? {
         val id = UUID.randomUUID().toString()
         val d = CompletableDeferred<String>()
@@ -241,7 +301,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore) 
             JSONObject.quote(id) + "," + JSONObject.quote(arg) + ");"
         w.evaluateJavascript(script, null)
         return try {
-            withTimeoutOrNull(15_000) { d.await() }
+            withTimeoutOrNull(selectors.json().optLong("waitMs", 6_000) + 3_000) { d.await() }
         } finally {
             pending.remove(id)
         }

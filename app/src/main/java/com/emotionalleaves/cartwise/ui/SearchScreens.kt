@@ -328,7 +328,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                         snapshotFlow {
                             val info = list.layoutInfo
                             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 6) to info.totalItemsCount
+                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 10) to info.totalItemsCount
                         }.distinctUntilChanged().collect { (near, _) -> if (near) vm.more() }
                     }
                     LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -352,14 +352,14 @@ fun ResultsScreen(nav: NavController, query: String) {
                                         r,
                                         tagSponsored = !vm.hidesSponsored,
                                         expanded = expanded[r.item.asin] == true,
-                                        onOpen = { nav.openProduct(r.item.asin) },
+                                        onOpen = { nav.openProduct(r.item) },
                                         onLong = { why = r },
                                         onToggleSimilar = { expanded[r.item.asin] = expanded[r.item.asin] != true },
                                     )
                                 }
                             }
                             if (expanded[r.item.asin] == true) {
-                                items(r.similar, key = { r.item.asin + "~" + it.asin }) { s -> SimilarRow(s) { nav.openProduct(s.asin) } }
+                                items(r.similar, key = { r.item.asin + "~" + it.asin }) { s -> SimilarRow(s) { nav.openProduct(s) } }
                             }
                         }
                         if (vm.loadingMore) item("more") { Column { ResultSkeleton(); ResultSkeleton() } }

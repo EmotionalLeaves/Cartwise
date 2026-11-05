@@ -199,8 +199,10 @@
     var asin = asinOf(location.href) || at(document.querySelector('input#ASIN, input[name="ASIN"]'), 'value');
     var pbt = qt(document, P.priceBlock);
     var healed = [];
-    var main = bodyText(['#ppd', '#dp', '#a-page']);
-    var buy = bodyText(['#buybox', '#desktop_buybox', '#apex_offerDisplay_mobile', '#rightCol', '#ppd']) || main;
+    // Page text is only measured when a field needs a fallback (it forces layout, which is slow).
+    var mainT = null, buyT = null;
+    function main() { if (mainT === null) mainT = bodyText(['#ppd', '#dp', '#a-page']); return mainT; }
+    function buy() { if (buyT === null) buyT = bodyText(['#buybox', '#desktop_buybox', '#apex_offerDisplay_mobile', '#rightCol', '#ppd']) || main(); return buyT; }
     var imgs = [];
     qall(document, P.images).forEach(function (e) { var s = imgOf(e); if (s && imgs.indexOf(s) < 0) imgs.push(s); });
     if (!imgs.length) {
@@ -288,19 +290,19 @@
       if (title) healed.push('title:page-title');
     }
     var price = qt(document, P.price) || priceIn(pbt);
-    if (!price) { price = priceIn(buy); if (price) healed.push('price:buy-box-text'); }
+    if (!price) { price = priceIn(buy()); if (price) healed.push('price:buy-box-text'); }
     var rating = ratingOf(document, P.rating);
-    if (!rating) { var rm = /(\d\.\d) out of 5 stars/.exec(main); if (rm) { rating = rm[0]; healed.push('rating:text'); } }
+    if (!rating) { var rm = /(\d\.\d) out of 5 stars/.exec(main()); if (rm) { rating = rm[0]; healed.push('rating:text'); } }
     var reviewCount = qt(document, P.reviewCount);
-    if (!reviewCount) { var cm = /([\d,]+)\s+(?:global\s+)?ratings?/i.exec(main); if (cm) { reviewCount = cm[0]; healed.push('reviews:text'); } }
+    if (!reviewCount) { var cm = /([\d,]+)\s+(?:global\s+)?ratings?/i.exec(main()); if (cm) { reviewCount = cm[0]; healed.push('reviews:text'); } }
     var delivery = qt(document, P.delivery);
-    if (!delivery) { delivery = deliveryIn(buy); if (delivery) healed.push('delivery:text'); }
+    if (!delivery) { delivery = deliveryIn(buy()); if (delivery) healed.push('delivery:text'); }
     var soldBy = qt(document, P.soldBy);
-    if (!soldBy) { var sm = /Sold by\s+(.{2,60}?)(?=\s+(?:Ships from|Returns|Payment|Packaging|Gift|Details)|$)/i.exec(buy); if (sm) { soldBy = sm[1]; healed.push('soldBy:text'); } }
+    if (!soldBy) { var sm = /Sold by\s+(.{2,60}?)(?=\s+(?:Ships from|Returns|Payment|Packaging|Gift|Details)|$)/i.exec(buy()); if (sm) { soldBy = sm[1]; healed.push('soldBy:text'); } }
     var shipsFrom = qt(document, P.shipsFrom);
-    if (!shipsFrom) { var fm = /Ships from\s+(.{2,40}?)(?=\s+(?:Sold by|Returns|Payment|Packaging)|$)/i.exec(buy); if (fm) shipsFrom = fm[1]; }
+    if (!shipsFrom) { var fm = /Ships from\s+(.{2,40}?)(?=\s+(?:Sold by|Returns|Payment|Packaging)|$)/i.exec(buy()); if (fm) shipsFrom = fm[1]; }
     var returns = qt(document, P.returns);
-    if (!returns) { var rt = /((?:FREE\s+)?(?:\d+-day\s+)?(?:refund\/replacement|returns?)[^.]{0,60})/i.exec(buy); if (rt) returns = rt[1]; }
+    if (!returns) { var rt = /((?:FREE\s+)?(?:\d+-day\s+)?(?:refund\/replacement|returns?)[^.]{0,60})/i.exec(buy()); if (rt) returns = rt[1]; }
     var cartBtn = q(document, P.addToCart) || document.querySelector("form[action*='add-to-cart'] input[type='submit'], form[action*='add-to-cart'] button");
     return {
       asin: asin,
@@ -500,8 +502,9 @@
       try { CartwiseBridge.post(id, JSON.stringify(r)); } catch (e) {}
     }
     (function wait() {
-      if (!ready || q(document, ready) || Date.now() - start > max) finish();
-      else setTimeout(wait, 250);
+      var parsed = document.readyState !== 'loading';
+      if ((parsed && (!ready || q(document, ready))) || Date.now() - start > max) finish();
+      else setTimeout(wait, 100);
     })();
   };
 })();
