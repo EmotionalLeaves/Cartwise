@@ -54,7 +54,7 @@ fun AccountScreen(nav: NavController) {
         onPauseOrDispose { }
     }
 
-    Screen("Account") { pad ->
+    Screen("Account", nav) { pad ->
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
             item {
                 Card(
@@ -205,7 +205,14 @@ fun CartScreen(nav: NavController) {
 
     Screen(
         "Cart",
-        actions = { IconButton(onClick = { reloadKey++ }) { Icon(Icons.Filled.Refresh, contentDescription = "Reload cart") } },
+        actions = {
+            IconButton(onClick = {
+                val w = web.value
+                subtotal = ""
+                if (w != null && Sensitive.isCart(url)) w.reload() else reloadKey++
+            }) { Icon(Icons.Filled.Refresh, contentDescription = "Reload cart") }
+            AccountButton(nav)
+        },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             key(reloadKey) {

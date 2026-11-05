@@ -235,7 +235,10 @@ fun OutletScreen(nav: NavController) {
     Screen(
         "Outlet",
         snackbar = snack,
-        actions = { TextButton(onClick = { nav.openWeb(Graph.shop.url("outletWeb")) }) { Text("Full page") } },
+        actions = {
+            TextButton(onClick = { nav.openWeb(Graph.shop.url("outletWeb")) }) { Text("Full page") }
+            AccountButton(nav)
+        },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             Row(

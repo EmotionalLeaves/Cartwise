@@ -224,7 +224,7 @@ fun QuizScreen(nav: NavController) {
                         saving = true
                         scope.launch {
                             Graph.taste.applyQuiz(Quiz.CHIPS.filter { it.slug in picked })
-                            Workers.refreshNow(ctx, pages = 20)
+                            Graph.feed.refreshNow(20)
                             saving = false
                             nav.navigate("foryou") { popUpTo("foryou") { inclusive = true } }
                         }

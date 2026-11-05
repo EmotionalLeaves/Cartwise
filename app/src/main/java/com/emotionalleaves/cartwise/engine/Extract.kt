@@ -5,7 +5,17 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Latest page-reader health per page kind, for the debug screen. */
+/** Things the pages tell us about your Amazon session, e.g. the cart count shown in Amazon's top bar. */
+object AmazonSession {
+    val cartCount = MutableStateFlow<Int?>(null)
+    fun saw(count: Int?) {
+        if (count != null && count in 0..999) cartCount.value = count
+    }
+}
+
 object HealthLog {
+    /** The last search page's items, for the debug screen and the emulator tour. */
+    val lastListings = MutableStateFlow<List<Listing>>(emptyList())
     val state = MutableStateFlow<Map<String, Health>>(emptyMap())
     fun record(h: Health) {
         state.value = state.value + (h.kind to h)
@@ -85,6 +95,8 @@ object Extract {
         val ok = items.size >= 2 && (fields["title"] ?: 0.0) >= 0.6
         val h = Health("search", System.currentTimeMillis(), items.size, fields, ok, url)
         HealthLog.record(h)
+        HealthLog.lastListings.value = items
+        AmazonSession.saw(Parse.int(j.optString("cartCount")))
         return SearchPage(items.filter { it.title.isNotBlank() }, j.optBoolean("hasNext", true), h)
     }
 
@@ -158,6 +170,7 @@ object Extract {
             "category" to if (p.breadcrumbs.isNotEmpty()) 1.0 else 0.0,
             "add to cart" to if (p.canAddToCart) 1.0 else 0.0,
         )
+        AmazonSession.saw(p.cartCount)
         HealthLog.record(
             Health("product", System.currentTimeMillis(), if (p.title.isNotBlank()) 1 else 0, fields, p.title.isNotBlank(), url, j.optJSONArray("healed").strings()),
         )

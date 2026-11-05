@@ -47,7 +47,10 @@ fun ListsScreen(nav: NavController) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Screen(
         "Lists",
-        actions = { IconButton(onClick = { nav.navigate("interests") }) { Icon(Icons.Filled.Star, contentDescription = "Your interests") } },
+        actions = {
+            IconButton(onClick = { nav.navigate("interests") }) { Icon(Icons.Filled.Star, contentDescription = "Your interests") }
+            AccountButton(nav)
+        },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background) {

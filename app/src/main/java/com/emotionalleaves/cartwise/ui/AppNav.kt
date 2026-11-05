@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,7 +44,6 @@ private val TABS = listOf(
     Tab("outlet", "Outlet", OutletIcon),
     Tab("lists", "Lists", Icons.Filled.Favorite),
     Tab("cart", "Cart", Icons.Filled.ShoppingCart),
-    Tab("account", "Account", Icons.Filled.Person),
 )
 
 @Composable
@@ -54,6 +55,7 @@ fun AppNav() {
     LaunchedEffect(route) { if (TABS.any { it.route == route }) tab = route }
 
     val pending by Graph.pendingAsin.collectAsStateWithLifecycle()
+    val cartCount by com.emotionalleaves.cartwise.engine.AmazonSession.cartCount.collectAsStateWithLifecycle()
     LaunchedEffect(pending) {
         val a = pending
         if (a != null) {
@@ -80,8 +82,15 @@ fun AppNav() {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(t.icon, contentDescription = t.label) },
-                            label = { Text(t.label, maxLines = 1, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
+                            icon = {
+                                val count = if (t.route == "cart") cartCount else null
+                                if (count != null && count > 0) {
+                                    BadgedBox(badge = { Badge { Text(count.toString()) } }) { Icon(t.icon, contentDescription = "${t.label}, $count items") }
+                                } else {
+                                    Icon(t.icon, contentDescription = t.label)
+                                }
+                            },
+                            label = { Text(t.label, maxLines = 1) },
                         )
                     }
                 }

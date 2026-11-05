@@ -23,5 +23,6 @@ class CartwiseApp : Application(), ImageLoaderFactory {
         .respectCacheHeaders(false)
         .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.25).build() }
         .diskCache { DiskCache.Builder().directory(cacheDir.resolve("photos")).maxSizeBytes(200L * 1024 * 1024).build() }
+        .apply { if (BuildConfig.DEBUG) logger(coil.util.DebugLogger()) }
         .build()
 }

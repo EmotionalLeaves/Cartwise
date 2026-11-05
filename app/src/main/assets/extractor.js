@@ -209,7 +209,7 @@
         brand: qt(c, S.brand) || brandLine
       });
     });
-    return { items: out, hasNext: !!q(document, S.next) || out.length >= 12 };
+    return { items: out, hasNext: !!q(document, S.next) || out.length >= 12, cartCount: qt(document, (cfg.common || {}).cartCount) };
   };
 
   EX.product = function (cfg) {

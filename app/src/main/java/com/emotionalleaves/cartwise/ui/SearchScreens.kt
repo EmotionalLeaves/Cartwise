@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -76,7 +77,7 @@ fun SearchScreen(nav: NavController) {
         nav.openResults(t)
     }
 
-    Screen("Search") { pad ->
+    Screen("Search", actions = { AccountButton(nav) }) { pad ->
         LazyColumn(Modifier.padding(pad).fillMaxSize()) {
             item {
                 OutlinedTextField(
@@ -538,14 +539,19 @@ internal fun ResultCard(
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SellerBadge(l.seller)
-                    Spacer(Modifier.width(4.dp))
-                    TextButton(onClick = onLong, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                        Text("Why this rank", style = MaterialTheme.typography.labelMedium)
-                    }
                     if (r.similar.isNotEmpty()) {
                         TextButton(onClick = onToggleSimilar, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                             Text(if (expanded) "Hide similar" else "+${r.similar.size} similar", style = MaterialTheme.typography.labelMedium)
                         }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onLong, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Filled.Info,
+                            contentDescription = "Why this rank",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }

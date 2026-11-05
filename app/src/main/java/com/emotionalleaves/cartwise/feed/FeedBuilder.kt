@@ -24,6 +24,7 @@ import com.emotionalleaves.cartwise.taste.Vec
 import com.emotionalleaves.cartwise.taste.toItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -56,6 +57,8 @@ class FeedBuilder(
         val message: String = "",
         val finishedAt: Long = 0,
         val error: String? = null,
+        /** Plain-language result of the last refresh, shown under the top bar. */
+        val note: String? = null,
     )
 
     private class Cand(
@@ -86,10 +89,15 @@ class FeedBuilder(
 
     suspend fun refresh(maxPages: Int): Boolean {
         if (!busy.compareAndSet(false, true)) return false
-        progress.value = Progress(running = true, max = maxPages, message = "Getting started")
+        progress.value = Progress(running = true, max = maxPages, message = "Getting started", note = null)
         return try {
-            build(maxPages)
-            progress.value = progress.value.copy(running = false, message = "Updated", finishedAt = System.currentTimeMillis())
+            val found = build(maxPages)
+            val note = when {
+                found < 0 -> "Nothing to refresh yet. Take the quiz or import your orders so Cartwise knows what you like."
+                found == 0 -> "Checked ${progress.value.used} pages; nothing new cleared the bar. Your current picks stay."
+                else -> null
+            }
+            progress.value = progress.value.copy(running = false, message = "Updated", finishedAt = System.currentTimeMillis(), note = note)
             true
         } catch (e: CancellationException) {
             throw e
@@ -102,7 +110,8 @@ class FeedBuilder(
         }
     }
 
-    private suspend fun build(max: Int) {
+    /** Returns how many cards were chosen, or -1 when there's nothing to go on yet. */
+    private suspend fun build(max: Int): Int {
         taste.rebuildIfStale()
         val profile = taste.profile()
         val budget = PageBudget(max, paced = true)
@@ -213,9 +222,19 @@ class FeedBuilder(
 
         step("Scoring ${cands.size} candidates")
         val cards = select(profile, cands, now)
-        if (cands.isNotEmpty()) dao.replaceFeed(cards)
+        if (cards.isNotEmpty()) dao.replaceFeed(cards)
         settings.setLastFeed(now)
         progress.value = progress.value.copy(used = budget.used, message = if (blocked) "Amazon asked for a captcha; stopped early" else "Updated")
+        forgetProfile()
+        if (profile.clusters.isEmpty() && profile.kept.isEmpty() && cands.isEmpty()) return -1
+        return cards.size
+    }
+
+    /** Runs a refresh right now in the app (not queued), for the refresh button and pull-to-refresh. */
+    fun refreshNow(pages: Int = 20) {
+        if (busy.get()) return
+        progress.value = Progress(running = true, max = pages, message = "Getting started")
+        com.emotionalleaves.cartwise.Graph.scope.launch { refresh(pages) }
     }
 
     private suspend fun restock(now: Long): List<Cand> {

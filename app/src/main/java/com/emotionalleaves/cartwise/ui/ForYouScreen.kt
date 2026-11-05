@@ -142,14 +142,15 @@ fun ForYouScreen(nav: NavController) {
         title = "For You",
         actions = {
             IconButton(onClick = { nav.navigate("interests") }) { Icon(Icons.Filled.Star, contentDescription = "Your interests") }
-            IconButton(onClick = { Workers.refreshNow(ctx) }, enabled = !progress.running) {
+            IconButton(onClick = { vm.reset(); Graph.feed.refreshNow() }, enabled = !progress.running) {
                 Icon(Icons.Filled.Refresh, contentDescription = "Refresh the feed")
             }
+            AccountButton(nav)
         },
     ) { pad ->
         PullToRefreshBox(
             isRefreshing = progress.running,
-            onRefresh = { vm.reset(); Workers.refreshNow(ctx) },
+            onRefresh = { vm.reset(); Graph.feed.refreshNow() },
             modifier = Modifier.padding(pad).fillMaxSize(),
         ) {
             LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -223,7 +224,7 @@ fun ForYouScreen(nav: NavController) {
                             "Cartwise only shows things that match what you buy and keep. An empty shelf beats a shelf of junk. " +
                                 "Pull down to refresh, import your orders from Account, or search a few things you like.",
                             "Refresh now",
-                        ) { Workers.refreshNow(ctx) }
+                        ) { vm.reset(); Graph.feed.refreshNow() }
                     }
                 }
                 val p = prefs
@@ -238,7 +239,10 @@ fun ForYouScreen(nav: NavController) {
                     }
                 }
                 progress.error?.let { err ->
-                    item("err") { Banner("Last refresh failed: $err") }
+                    item("err") { Banner("Last refresh failed: $err", "Try again") { vm.reset(); Graph.feed.refreshNow() } }
+                }
+                if (!progress.running && progress.error == null) {
+                    progress.note?.let { n -> item("note") { Banner(n) } }
                 }
                 if (hasInterests && (vm.more.isNotEmpty() || vm.loading || vm.error != null)) {
                     item("more-h") { SectionHeader("More for you") }

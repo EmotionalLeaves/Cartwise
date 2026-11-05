@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
@@ -67,6 +68,14 @@ fun Screen(
         snackbarHost = { if (snackbar != null) SnackbarHost(snackbar) },
         containerColor = MaterialTheme.colorScheme.background,
     ) { pad -> content(pad) }
+}
+
+/** Your account: sign-in, orders, interests, settings. Lives in the top bar of every tab. */
+@Composable
+fun AccountButton(nav: NavController) {
+    IconButton(onClick = { nav.navigate("account") { launchSingleTop = true } }) {
+        Icon(Icons.Filled.AccountCircle, contentDescription = "Account and settings")
+    }
 }
 
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
@@ -183,7 +192,7 @@ fun Pill(text: String, container: Color = MaterialTheme.colorScheme.surfaceVaria
 
 @Composable
 fun DiscountPill(pct: Int) {
-    Pill("−$pct%", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+    Pill("−$pct%", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
 }
 
 @Composable

@@ -88,7 +88,9 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
         is WebEngine.Res.Ok -> {
             val arr = r.json.optJSONArray("asins")
             val asins = if (arr == null) emptyList() else (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
-            Load.Ok(Parse.int(r.json.optString("count")) to asins.distinct())
+            val count = Parse.int(r.json.optString("count"))
+            AmazonSession.saw(count)
+            Load.Ok(count to asins.distinct())
         }
         is WebEngine.Res.Fail -> fail(r)
     }
@@ -115,6 +117,7 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
         return when (val cart = s.run(url("cart"), "cartcount")) {
             is WebEngine.Res.Ok -> {
                 val after = Parse.int(cart.json.optString("count"))
+                AmazonSession.saw(after)
                 val arr = cart.json.optJSONArray("asins")
                 val inCart = arr != null && (0 until arr.length()).any { arr.optString(it) == asin }
                 if (inCart || (after != null && before != null && after > before)) AddResult.Added(after)
