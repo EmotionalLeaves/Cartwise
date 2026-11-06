@@ -137,8 +137,8 @@ fun ForYouScreen(nav: NavController) {
         snapshotFlow {
             val info = list.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 7) to info.totalItemsCount
-        }.distinctUntilChanged().collect { (near, _) -> if (near && !refreshing) vm.loadMore(cardsNow) }
+            Triple(info.totalItemsCount > 0 && last >= info.totalItemsCount - 7, info.totalItemsCount, vm.loading || refreshing)
+        }.distinctUntilChanged().collect { (near, _, busy) -> if (near && !busy) vm.loadMore(cardsNow) }
     }
 
     Screen(
@@ -258,6 +258,11 @@ fun ForYouScreen(nav: NavController) {
                             )
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+                if (!vm.loading && !vm.exhausted && vm.error == null && hasInterests && !progress.running) {
+                    item("more-button") {
+                        TextButton(onClick = { vm.loadMore(cards) }, modifier = Modifier.fillMaxWidth().padding(8.dp)) { Text("Load more") }
                     }
                 }
                 if (vm.loading) item("more-loading") {

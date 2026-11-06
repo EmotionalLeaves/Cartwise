@@ -147,5 +147,8 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Outlet filters:** the same Filters sheet as search, on every Outlet section (price is sent to Amazon; the rest filter instantly).
 - Rules file is version 5 (reviews page selectors).
 
+## Infinite scroll fix
+- Search, For You and the Outlet no longer stall at the bottom: when a load finishes and you're still at the end, the next page is requested again. A page that adds nothing visible (all sponsored, hidden or filtered out) is skipped, and after 5 such pages in a row the list says it's done. A "Load more" button sits at the bottom as a backup.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

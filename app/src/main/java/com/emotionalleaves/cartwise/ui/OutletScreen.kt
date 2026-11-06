@@ -98,6 +98,7 @@ class OutletVm : ViewModel() {
         private set
 
     private var page = 1
+    private var emptyPages = 0
     private var step = 0
     private var empties = 0
     private val pages = ArrayList<List<Listing>>()
@@ -141,7 +142,7 @@ class OutletVm : ViewModel() {
 
     fun restart() {
         job?.cancel()
-        rows.clear(); pages.clear(); page = 1; step = 0; empties = 0
+        rows.clear(); pages.clear(); page = 1; step = 0; empties = 0; emptyPages = 0
         loading = false; error = null; errorReason = null; fallbackUrl = null; ended = false; noInterests = false
         loadMore()
     }
@@ -178,9 +179,11 @@ class OutletVm : ViewModel() {
                 val known = pages.flatten().map { it.asin }.toHashSet()
                 val fresh = r.v.items.filter { it.asin !in known }
                 if (fresh.isEmpty()) { ended = true; return }
+                val before = shown.size
                 pages.add(fresh)
                 page++
                 rerank()
+                if (shown.size == before) { if (++emptyPages >= 5) ended = true } else emptyPages = 0
                 prefetch(url(name, query, page), if (page == 2) fresh.take(3).map { it.asin } else emptyList())
             }
             is Load.Fail -> {
@@ -263,8 +266,8 @@ fun OutletScreen(nav: NavController) {
         snapshotFlow {
             val info = grid.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 10) to info.totalItemsCount
-        }.distinctUntilChanged().collect { (near, _) -> if (near) vm.loadMore() }
+            Triple(info.totalItemsCount > 0 && last >= info.totalItemsCount - 10, info.totalItemsCount, vm.loading)
+        }.distinctUntilChanged().collect { (near, _, busy) -> if (near && !busy) vm.loadMore() }
     }
 
     Screen(
@@ -345,6 +348,11 @@ fun OutletScreen(nav: NavController) {
                     )
                 }
                 if (vm.loading) items(4) { TileSkeleton() }
+                else if (!vm.ended && vm.error == null && vm.shown.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        TextButton(onClick = { vm.loadMore() }, modifier = Modifier.fillMaxWidth().padding(8.dp)) { Text("Load more") }
+                    }
+                }
                 vm.error?.let { err ->
                     item(span = { GridItemSpan(2) }) {
                         if (vm.rows.isEmpty()) ErrorState(vm.errorReason ?: Reason.ERROR, err, onRetry = { vm.loadMore() })

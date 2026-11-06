@@ -248,6 +248,7 @@ class ResultsVm(val query: String) : ViewModel() {
         page = 1
         endReached = false
         moreError = null
+        emptyLoads = 0
         when (val r = Graph.shop.search(query, 1, filters.amazonParams())) {
             is Load.Ok -> {
                 if (!r.v.health.ok) {
@@ -293,10 +294,13 @@ class ResultsVm(val query: String) : ViewModel() {
                     val fresh = r.v.items.filter { it.asin !in known }
                     if (fresh.isEmpty()) endReached = true
                     else {
+                        val before = ranked.size
                         page++
                         pages.add(fresh)
                         rerank()
                         prefetch(page + 1, emptyList())
+                        // A page that adds nothing visible (all sponsored/hidden/filtered) counts as empty; 5 in a row ends it.
+                        if (ranked.size == before) { if (++emptyLoads >= 5) endReached = true } else emptyLoads = 0
                     }
                 }
                 is Load.Fail -> moreError = when (r.reason) {
@@ -309,6 +313,8 @@ class ResultsVm(val query: String) : ViewModel() {
             topUp()
         }
     }
+
+    private var emptyLoads = 0
 
     /** When filters leave the screen nearly empty, keep reading pages (up to 6 extra) until there's enough to scroll. */
     private var topUps = 0
@@ -413,8 +419,9 @@ fun ResultsScreen(nav: NavController, query: String) {
                         snapshotFlow {
                             val info = grid.layoutInfo
                             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 8) to info.totalItemsCount
-                        }.distinctUntilChanged().collect { (near, _) -> if (near) vm.more() }
+                            // Includes the loading flag, so when a load finishes and you're still at the bottom it asks again.
+                            Triple(info.totalItemsCount > 0 && last >= info.totalItemsCount - 8, info.totalItemsCount, vm.loadingMore)
+                        }.distinctUntilChanged().collect { (near, _, busy) -> if (near && !busy) vm.more() }
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
@@ -440,6 +447,11 @@ fun ResultsScreen(nav: NavController, query: String) {
                             )
                         }
                         if (vm.loadingMore) items(4) { TileSkeleton() }
+                        else if (!vm.endReached && vm.moreError == null && vm.ranked.isNotEmpty()) {
+                            item(span = { GridItemSpan(2) }) {
+                                TextButton(onClick = { vm.more() }, modifier = Modifier.fillMaxWidth().padding(8.dp)) { Text("Load more") }
+                            }
+                        }
                         vm.moreError?.let { err ->
                             item(span = { GridItemSpan(2) }) {
                                 Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
