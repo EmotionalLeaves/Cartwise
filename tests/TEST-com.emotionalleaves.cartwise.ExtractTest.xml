@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.emotionalleaves.cartwise.ExtractTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-06T02:02:26" hostname="runnervm7aw5e" time="0.203">
+  <properties/>
+  <testcase name="cutOffPhotoAddressesAreRepaired" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.084"/>
+  <testcase name="orders" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.066"/>
+  <testcase name="photos" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.002"/>
+  <testcase name="search" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.019"/>
+  <testcase name="reportIsSmallAndTargeted" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.002"/>
+  <testcase name="product" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.01"/>
+  <testcase name="lists" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.005"/>
+  <testcase name="phoneProductWithoutBreadcrumbs" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.006"/>
+  <testcase name="addToCartGuard" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.001"/>
+  <testcase name="phoneSearchLayout" classname="com.emotionalleaves.cartwise.ExtractTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

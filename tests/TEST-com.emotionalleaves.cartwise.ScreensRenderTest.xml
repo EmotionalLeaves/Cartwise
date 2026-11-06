@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.emotionalleaves.cartwise.ScreensRenderTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-11-06T02:02:26" hostname="runnervm7aw5e" time="12.448">
+  <properties/>
+  <testcase name="selfCheck" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="9.128"/>
+  <testcase name="account" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.262"/>
+  <testcase name="forYouEmptyAsksForQuiz" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.198"/>
+  <testcase name="watchlist" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.251"/>
+  <testcase name="debugTabs" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.441"/>
+  <testcase name="rawPageBanner" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.245"/>
+  <testcase name="quizNeedsFive" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.243"/>
+  <testcase name="searchScreen" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.319"/>
+  <testcase name="interests" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.284"/>
+  <testcase name="forYouShowsShelves" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.224"/>
+  <testcase name="settings" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.178"/>
+  <testcase name="resultCardAndWhyRank" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.133"/>
+  <testcase name="productBodyTabs" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.288"/>
+  <testcase name="cartScreen" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.089"/>
+  <testcase name="outletTab" classname="com.emotionalleaves.cartwise.ScreensRenderTest" time="0.162"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.emotionalleaves.cartwise.RankerTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-06T02:02:26" hostname="runnervm7aw5e" time="0.032">
+  <properties/>
+  <testcase name="weightsAreNormalized" classname="com.emotionalleaves.cartwise.RankerTest" time="0.013"/>
+  <testcase name="fewReviewsDontWin" classname="com.emotionalleaves.cartwise.RankerTest" time="0.001"/>
+  <testcase name="filters" classname="com.emotionalleaves.cartwise.RankerTest" time="0.004"/>
+  <testcase name="shortCustomWeightsArePadded" classname="com.emotionalleaves.cartwise.RankerTest" time="0.001"/>
+  <testcase name="clonesAreGrouped" classname="com.emotionalleaves.cartwise.RankerTest" time="0.001"/>
+  <testcase name="sponsoredAndBlockedAreRemoved" classname="com.emotionalleaves.cartwise.RankerTest" time="0.002"/>
+  <testcase name="discountPresetAndSaleFilter" classname="com.emotionalleaves.cartwise.RankerTest" time="0.004"/>
+  <testcase name="presetsChangeTheOrder" classname="com.emotionalleaves.cartwise.RankerTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

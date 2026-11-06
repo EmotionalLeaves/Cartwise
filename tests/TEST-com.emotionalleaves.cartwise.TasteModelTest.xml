@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.emotionalleaves.cartwise.TasteModelTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-06T02:02:39" hostname="runnervm7aw5e" time="0.284">
+  <properties/>
+  <testcase name="keptItemsBecomeInterests" classname="com.emotionalleaves.cartwise.TasteModelTest" time="0.1"/>
+  <testcase name="wipeClearsEverything" classname="com.emotionalleaves.cartwise.TasteModelTest" time="0.063"/>
+  <testcase name="quizBuildsInterests" classname="com.emotionalleaves.cartwise.TasteModelTest" time="0.062"/>
+  <testcase name="fitPrefersMatchingItems" classname="com.emotionalleaves.cartwise.TasteModelTest" time="0.059"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
