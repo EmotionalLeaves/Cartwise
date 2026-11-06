@@ -136,5 +136,9 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 ## Photo fix (from your photo report)
 - Amazon photo addresses can contain a comma (`…._AC_SR525,525_.jpg`). The reader split photo lists on commas, so those addresses were cut off and failed with HTTP 400. Lists are now split only between entries, and any cut-off address already saved on the phone is rebuilt from its photo ID.
 
+## Search filters
+- A **Filters** button next to "On sale" opens one sheet: price range (typed or quick ranges), customer rating (4★+, 4.5★+), number of reviews (100+, 1,000+, 10,000+), arrival (today/tomorrow, within 2 or 5 days), seller (Prime or Amazon, sold by Amazon), discount (10/25/50% off+), brand (picked from the brands in your results) and "hide items with no price". The button shows how many filters are on.
+- Price is sent to Amazon (`low-price`/`high-price`), so you get a full page of matches; the other filters apply instantly to loaded results, and if they leave fewer than 12 the app quietly reads more pages (up to 6) to fill the screen.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

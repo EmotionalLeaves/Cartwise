@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -192,6 +193,15 @@ class ResultsVm(val query: String) : ViewModel() {
         private set
     var saleOnly by mutableStateOf(false)
         private set
+    var filters by mutableStateOf(com.emotionalleaves.cartwise.rank.Filters())
+        private set
+
+    /** Brands on the pages loaded so far, most common first, for the brand filter. */
+    val brandsSeen: List<Pair<String, String>>
+        get() = pages.flatten().groupBy { Ranker.brandKey(it) }
+            .filter { it.key.isNotBlank() && it.key.length < 30 }
+            .entries.sortedByDescending { it.value.size }.take(20)
+            .map { it.key to it.value.first().brand.ifBlank { it.key } }
 
     /** Each Amazon page is ranked on its own and appended, so scrolling never reshuffles what you've seen. */
     private val pages = ArrayList<List<Listing>>()
@@ -207,7 +217,7 @@ class ResultsVm(val query: String) : ViewModel() {
     private var kept = emptySet<String>()
     private var returned = emptySet<String>()
 
-    val pageUrl: String get() = Graph.shop.url("search", "q" to ShopRepo.enc(query), "page" to "1")
+    val pageUrl: String get() = Graph.shop.url("search", "q" to ShopRepo.enc(query), "page" to "1") + filters.amazonParams()
 
     init {
         viewModelScope.launch {
@@ -238,7 +248,7 @@ class ResultsVm(val query: String) : ViewModel() {
         page = 1
         endReached = false
         moreError = null
-        when (val r = Graph.shop.search(query, 1)) {
+        when (val r = Graph.shop.search(query, 1, filters.amazonParams())) {
             is Load.Ok -> {
                 if (!r.v.health.ok) {
                     state = St.Fallback(pageUrl)
@@ -248,6 +258,7 @@ class ResultsVm(val query: String) : ViewModel() {
                 rerank()
                 state = St.Ready
                 prefetch(page + 1, ranked.take(4).map { it.item.asin })
+                topUp()
             }
             is Load.Fail -> state = when (r.reason) {
                 Reason.CAPTCHA, Reason.EMPTY, Reason.ERROR, Reason.SIGNED_OUT -> St.Fallback(r.url ?: pageUrl)
@@ -258,7 +269,7 @@ class ResultsVm(val query: String) : ViewModel() {
         val st = state
         if (st is St.Failed && st.reason == Reason.TIMEOUT) {
             delay(1_500)
-            val again = Graph.shop.search(query, 1)
+            val again = Graph.shop.search(query, 1, filters.amazonParams())
             if (again is Load.Ok && again.v.health.ok) {
                 pages.add(again.v.items); rerank(); state = St.Ready
             }
@@ -276,7 +287,7 @@ class ResultsVm(val query: String) : ViewModel() {
         loadingMore = true
         moreError = null
         viewModelScope.launch {
-            when (val r = Graph.shop.search(query, page + 1)) {
+            when (val r = Graph.shop.search(query, page + 1, filters.amazonParams())) {
                 is Load.Ok -> {
                     val known = pages.flatten().map { it.asin }.toHashSet()
                     val fresh = r.v.items.filter { it.asin !in known }
@@ -295,7 +306,23 @@ class ResultsVm(val query: String) : ViewModel() {
                 }
             }
             loadingMore = false
+            topUp()
         }
+    }
+
+    /** When filters leave the screen nearly empty, keep reading pages (up to 6 extra) until there's enough to scroll. */
+    private var topUps = 0
+    private fun topUp() {
+        if (filters.active == 0 && !saleOnly) { topUps = 0; return }
+        if (ranked.size >= 12 || endReached || moreError != null) { topUps = 0; return }
+        if (topUps++ < 6) more()
+    }
+
+    fun applyFilters(f: com.emotionalleaves.cartwise.rank.Filters) {
+        val priceChanged = f.minPrice != filters.minPrice || f.maxPrice != filters.maxPrice
+        filters = f
+        topUps = 0
+        if (priceChanged) viewModelScope.launch { load() } else { rerank(); topUp() }
     }
 
     /**
@@ -316,6 +343,7 @@ class ResultsVm(val query: String) : ViewModel() {
     fun toggleSaleOnly(v: Boolean) {
         saleOnly = v
         rerank()
+        topUp()
     }
 
     fun setWeights(w: DoubleArray) {
@@ -341,7 +369,7 @@ class ResultsVm(val query: String) : ViewModel() {
     }
 
     private fun rerank() {
-        val ctx = Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize, saleOnly)
+        val ctx = Ranker.Ctx(query, preset, custom, hideSponsored, hidden, blockedBrands, kept, returned, personalize, saleOnly, filters)
         val out = ArrayList<Ranked>()
         val shown = HashSet<String>()
         for (pg in pages) {
@@ -362,6 +390,7 @@ fun ResultsScreen(nav: NavController, query: String) {
     val scope = rememberCoroutineScope()
     var options by remember { mutableStateOf<Ranked?>(null) }
     var adjust by remember { mutableStateOf(false) }
+    var showFilters by remember { mutableStateOf(false) }
 
     Screen(query, nav, snack) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
@@ -377,6 +406,7 @@ fun ResultsScreen(nav: NavController, query: String) {
                         preset = vm.preset, custom = vm.custom != null, saleOnly = vm.saleOnly,
                         onPick = { vm.choose(it) }, onAdjust = { adjust = true }, onSaleOnly = { vm.toggleSaleOnly(it) },
                         count = vm.ranked.size,
+                        filtersActive = vm.filters.active, onFilters = { showFilters = true },
                     )
                     val grid = rememberLazyGridState()
                     LaunchedEffect(grid) {
@@ -395,7 +425,10 @@ fun ResultsScreen(nav: NavController, query: String) {
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         if (vm.ranked.isEmpty()) {
-                            item(span = { GridItemSpan(2) }) { EmptyState("Nothing to show", "Everything on this page is hidden by your filters.") }
+                            item(span = { GridItemSpan(2) }) {
+                                if (vm.loadingMore) GridSkeleton()
+                                else EmptyState("Nothing matches", "No results here pass your filters. Loosen a filter, or clear them all.", "Clear filters") { vm.applyFilters(com.emotionalleaves.cartwise.rank.Filters()) }
+                            }
                         }
                         items(vm.ranked, key = { it.item.asin }) { r ->
                             val l = r.item
@@ -468,6 +501,11 @@ fun ResultsScreen(nav: NavController, query: String) {
             AdjustSheet(vm.custom ?: vm.preset.w) { vm.setWeights(it); adjust = false }
         }
     }
+    if (showFilters) {
+        ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            FilterSheet(vm.filters, vm.brandsSeen, onApply = { vm.applyFilters(it); showFilters = false })
+        }
+    }
 }
 
 /** One sort control and one filter, instead of a row of chips. */
@@ -480,6 +518,8 @@ internal fun SortBar(
     onAdjust: (() -> Unit)?,
     onSaleOnly: (Boolean) -> Unit = {},
     count: Int? = null,
+    filtersActive: Int = 0,
+    onFilters: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -515,6 +555,85 @@ internal fun SortBar(
                 leadingIcon = if (saleOnly) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
             )
         }
+        if (onFilters != null) {
+            Spacer(Modifier.width(8.dp))
+            FilterChip(
+                selected = filtersActive > 0,
+                onClick = onFilters,
+                label = { Text(if (filtersActive > 0) "Filters · $filtersActive" else "Filters") },
+            )
+        }
+    }
+}
+
+/** Every filter on one sheet, in the order people decide: price, quality, speed, who sells it, brand. */
+@Composable
+internal fun FilterSheet(start: com.emotionalleaves.cartwise.rank.Filters, brands: List<Pair<String, String>>, onApply: (com.emotionalleaves.cartwise.rank.Filters) -> Unit) {
+    var f by remember { mutableStateOf(start) }
+    var minText by remember { mutableStateOf(start.minPrice?.let { it.toInt().toString() } ?: "") }
+    var maxText by remember { mutableStateOf(start.maxPrice?.let { it.toInt().toString() } ?: "") }
+    @Composable
+    fun <T> Choices(title: String, options: List<Pair<String, T>>, value: T, onPick: (T) -> Unit) {
+        Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (label, v) -> FilterChip(selected = value == v, onClick = { onPick(v) }, label = { Text(label) }) }
+        }
+    }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Filters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            TextButton(onClick = { f = com.emotionalleaves.cartwise.rank.Filters(); minText = ""; maxText = "" }) { Text("Clear all") }
+        }
+        Text("Price", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = minText, onValueChange = { minText = it.filter(Char::isDigit).take(6) },
+                prefix = { Text("$") }, placeholder = { Text("Min") }, singleLine = true, modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+            )
+            Text("to")
+            OutlinedTextField(
+                value = maxText, onValueChange = { maxText = it.filter(Char::isDigit).take(6) },
+                prefix = { Text("$") }, placeholder = { Text("Max") }, singleLine = true, modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Under $25" to (null to 25), "$25–50" to (25 to 50), "$50–100" to (50 to 100), "$100–250" to (100 to 250), "$250+" to (250 to null)).forEach { (label, r) ->
+                val on = minText == (r.first?.toString() ?: "") && maxText == (r.second?.toString() ?: "")
+                SuggestionChip(onClick = { minText = r.first?.toString() ?: ""; maxText = r.second?.toString() ?: "" }, label = { Text(label) },
+                    colors = if (on) SuggestionChipDefaults.suggestionChipColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else SuggestionChipDefaults.suggestionChipColors())
+            }
+        }
+        Choices("Customer rating", listOf("Any" to null, "4★ & up" to 4.0, "4.5★ & up" to 4.5), f.minRating) { f = f.copy(minRating = it) }
+        Choices("Number of reviews", listOf("Any" to 0, "100+" to 100, "1,000+" to 1000, "10,000+" to 10_000), f.minReviews) { f = f.copy(minReviews = it) }
+        Choices("Arrives", listOf("Any time" to null, "Today or tomorrow" to 1, "Within 2 days" to 2, "Within 5 days" to 5), f.maxDays) { f = f.copy(maxDays = it) }
+        Choices("Seller", listOf("Anyone" to 0, "Prime or Amazon" to 1, "Sold by Amazon" to 2), f.seller) { f = f.copy(seller = it) }
+        Choices("Discount", listOf("Any" to 0, "10% off+" to 10, "25% off+" to 25, "50% off+" to 50), f.minDiscount) { f = f.copy(minDiscount = it) }
+        if (brands.isNotEmpty()) {
+            Text("Brand", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                brands.forEach { (key, label) ->
+                    val on = key in f.brands
+                    FilterChip(selected = on, onClick = { f = f.copy(brands = if (on) f.brands - key else f.brands + key) }, label = { Text(label) })
+                }
+            }
+        }
+        Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Hide items with no price shown", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Switch(checked = f.hideNoPrice, onCheckedChange = { f = f.copy(hideNoPrice = it) })
+        }
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = {
+                val lo = minText.toDoubleOrNull()
+                val hi = maxText.toDoubleOrNull()
+                val (a, b) = if (lo != null && hi != null && lo > hi) hi to lo else lo to hi
+                onApply(f.copy(minPrice = a, maxPrice = b))
+            },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        ) { Text("Show results") }
     }
 }
 

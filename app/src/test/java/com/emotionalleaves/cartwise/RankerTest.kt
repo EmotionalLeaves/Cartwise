@@ -68,4 +68,14 @@ class RankerTest {
         val r = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, custom = doubleArrayOf(1.0, 1.0, 1.0, 1.0, 1.0)))
         assertEquals(6, r.first().weights.size)
     }
+
+    @Test fun filters() {
+        val f = com.emotionalleaves.cartwise.rank.Filters(maxPrice = 12.0, minRating = 4.1)
+        val ids = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, filters = f)).map { it.item.asin }.toSet()
+        assertEquals(setOf("A", "C"), ids)
+        assertEquals("&high-price=12", f.amazonParams())
+        val fast = Ranker.rank(page, Ranker.Ctx("usb c cable", Preset.BEST, filters = com.emotionalleaves.cartwise.rank.Filters(maxDays = 1, seller = 1)))
+        assertEquals(listOf("B"), fast.map { it.item.asin })
+        assertEquals(2, com.emotionalleaves.cartwise.rank.Filters(minReviews = 100, brands = setOf("beta")).active)
+    }
 }

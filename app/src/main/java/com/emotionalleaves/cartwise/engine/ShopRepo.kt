@@ -37,8 +37,8 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
 
     private fun fail(r: WebEngine.Res.Fail): Load.Fail = Load.Fail(r.reason, r.message, r.url)
 
-    suspend fun search(query: String, page: Int): Load<SearchPage> =
-        searchUrl(url("search", "q" to enc(query), "page" to page.toString()))
+    suspend fun search(query: String, page: Int, extra: String = ""): Load<SearchPage> =
+        searchUrl(url("search", "q" to enc(query), "page" to page.toString()) + extra)
 
     suspend fun searchUrl(u: String): Load<SearchPage> = cached("search:$u", 5 * MIN) {
         when (val r = engine.run(u, "search")) {

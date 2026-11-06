@@ -48,6 +48,7 @@ object Ranker {
         val personalize: Boolean = false,
         /** Only items with a real discount off the list price. */
         val saleOnly: Boolean = false,
+        val filters: Filters = Filters(),
     )
 
     fun brandKey(l: Listing): String = l.brand.ifBlank { l.title.substringBefore(' ') }.lowercase(Locale.US).trim()
@@ -61,7 +62,7 @@ object Ranker {
 
         val pool = items.distinctBy { it.asin }.filter {
             it.title.isNotBlank() && it.asin !in ctx.hidden && brandKey(it) !in ctx.blockedBrands &&
-                !(ctx.hideSponsored && it.sponsored) && (!ctx.saleOnly || it.discountPct >= 5)
+                !(ctx.hideSponsored && it.sponsored) && (!ctx.saleOnly || it.discountPct >= 5) && ctx.filters.keep(it)
         }
         if (pool.isEmpty()) return emptyList()
 
