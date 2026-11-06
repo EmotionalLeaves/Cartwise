@@ -50,7 +50,7 @@ class ScreensRenderTest {
 
     @Test fun forYouEmptyAsksForQuiz() {
         show { ForYouScreen(it) }
-        waitText("Make this feed yours")
+        waitText("what you actually keep")
     }
 
     @Test fun forYouShowsShelves() {
@@ -72,6 +72,7 @@ class ScreensRenderTest {
     @Test fun searchScreen() {
         show { SearchScreen(it) }
         waitText("What are you looking for?")
+        waitText("air fryer")
     }
 
     @Test fun resultCardAndWhyRank() {
@@ -79,13 +80,12 @@ class ScreensRenderTest {
         val ranked = Ranker.rank(page.items, Ranker.Ctx("usb c cable", Preset.BEST, hideSponsored = false))
         show {
             Column {
-                ResultCard(ranked[0], tagSponsored = true, expanded = false, onOpen = {}, onLong = {}, onToggleSimilar = {})
-                WhyRank(ranked[0], onHideBrand = {}, onHideItem = {}, onWatch = {})
+                ProductTile(ranked[0].item.tile(), onOpen = {}, onLong = {})
+                WhyRank(ranked[0])
             }
         }
         waitText("Anker USB C")
         waitText("Score ")
-        waitText("Hide this brand")
     }
 
     @Test fun productBodyTabs() {

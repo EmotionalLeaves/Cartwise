@@ -8,9 +8,11 @@ package com.emotionalleaves.cartwise.ui
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -230,12 +232,11 @@ fun OutletScreen(nav: NavController) {
     var text by rememberSaveable { mutableStateOf("") }
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val list = rememberLazyListState()
-    val watched by Graph.db.dao().watchFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    val grid = rememberLazyGridState()
 
-    LaunchedEffect(list) {
+    LaunchedEffect(grid) {
         snapshotFlow {
-            val info = list.layoutInfo
+            val info = grid.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
             (info.totalItemsCount > 0 && last >= info.totalItemsCount - 10) to info.totalItemsCount
         }.distinctUntilChanged().collect { (near, _) -> if (near) vm.loadMore() }
@@ -261,7 +262,7 @@ fun OutletScreen(nav: NavController) {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
                 placeholder = { Text(if (vm.section == OutletSection.DEALS) "Search today's deals" else "Search " + vm.section.label.lowercase(Locale.US) + " deals") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
@@ -273,21 +274,29 @@ fun OutletScreen(nav: NavController) {
                 keyboardActions = KeyboardActions(onSearch = { vm.search(text) }),
             )
             if (vm.section != OutletSection.FOR_YOU) {
-                PresetRow(vm.preset, false, onPick = { vm.sortBy(it) }, onAdjust = null)
+                SortBar(vm.preset, false, saleOnly = null, onPick = { vm.sortBy(it) }, onAdjust = null, count = vm.rows.size)
+            } else {
+                Text(
+                    vm.section.blurb,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
             }
-            Text(
-                vm.section.blurb,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            )
             val fb = vm.fallbackUrl
             if (fb != null) {
                 Banner("Simplified view unavailable — showing Amazon's page", "Retry") { vm.restart() }
                 AmazonPage(fb, PageMode.RAW, Modifier.weight(1f))
-            } else LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().testTag("outlet-list"), contentPadding = PaddingValues(bottom = 24.dp)) {
+            } else LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                state = grid,
+                modifier = Modifier.weight(1f).fillMaxWidth().testTag("outlet-list"),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 if (vm.noInterests) {
-                    item("nointerests") {
+                    item(span = { GridItemSpan(2) }) {
                         EmptyState(
                             "No interests yet",
                             "\"For you\" picks outlet deals that match what you buy and keep. Take the 30-second quiz, or browse the other sections.",
@@ -296,72 +305,34 @@ fun OutletScreen(nav: NavController) {
                     }
                 }
                 items(vm.rows, key = { it.l.asin }) { r ->
-                    OutletCard(
-                        r,
-                        watched = watched.any { it.asin == r.l.asin },
-                        modifier = Modifier,
+                    ProductTile(
+                        r.l.tile(line = r.reason ?: Fmt.delivery(r.l.deliveryDays, r.l.deliveryText), accent = r.reason != null),
                         onOpen = { nav.openProduct(r.l) },
-                        onWatch = {
-                            vm.watch(r.l)
-                            scope.launch { snack.showSnackbar("Added to your watchlist") }
-                        },
+                        onLong = { vm.watch(r.l); scope.launch { snack.showSnackbar("Added to your watchlist") } },
                     )
                 }
-                if (vm.loading) item("loading") { Column { ResultSkeleton(); ResultSkeleton(); ResultSkeleton() } }
+                if (vm.loading) items(4) { TileSkeleton() }
                 vm.error?.let { err ->
-                    item("err") {
+                    item(span = { GridItemSpan(2) }) {
                         if (vm.rows.isEmpty()) ErrorState(vm.errorReason ?: Reason.ERROR, err, onRetry = { vm.loadMore() })
-                        else Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        else Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Couldn't load more: $err", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                             TextButton(onClick = { vm.loadMore() }) { Text("Try again") }
                         }
                     }
                 }
                 if (vm.ended && !vm.noInterests) {
-                    item("end") {
+                    item(span = { GridItemSpan(2) }) {
                         Text(
                             if (vm.rows.isEmpty()) "Nothing here right now." else "That's everything for now.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.fillMaxWidth().padding(24.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun OutletCard(r: OutletRow, watched: Boolean, modifier: Modifier, onOpen: () -> Unit, onWatch: () -> Unit) {
-    val l = r.l
-    Row(
-        modifier.fillMaxWidth().combinedClickable(onClick = onOpen, onLongClick = onWatch, onLongClickLabel = "Add to watchlist")
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        ProductImage(l.image, Modifier.size(108.dp), l.title)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(l.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            PriceLine(l.price, l.priceText, l.unitPrice, if (l.discountPct > 0) Fmt.money(l.listPrice) else "")
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (l.discountPct > 0) {
-                    DiscountPill(l.discountPct)
-                    Spacer(Modifier.width(8.dp))
-                }
-                RatingLine(l.rating, l.reviews)
-            }
-            Text(
-                r.reason ?: Fmt.delivery(l.deliveryDays, l.deliveryText),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (r.reason != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onWatch) {
-            Icon(if (watched) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = if (watched) "On your watchlist" else "Add to watchlist")
         }
     }
 }

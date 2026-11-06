@@ -163,33 +163,26 @@ fun ForYouScreen(nav: NavController) {
                                 progress = { if (progress.max > 0) progress.used.toFloat() / progress.max else 0f },
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            Text(
-                                "Reading pages slowly on purpose (${progress.used} of up to ${progress.max}) so your account looks normal.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
+
                         }
                     }
                 }
-                if (!signedIn) {
+                if (!signedIn && cards.isEmpty()) {
                     item("signin") {
                         Banner("Sign in to Amazon for restock, price-drop and Lists shelves.", "Sign in") { nav.navigate("login") }
                     }
                 }
                 if (prefs?.quizDone != true && clusters.isEmpty()) {
                     item("quiz") {
-                        Card(Modifier.fillMaxWidth().padding(16.dp)) {
-                            Column(Modifier.padding(20.dp)) {
-                                Text("Make this feed yours", style = MaterialTheme.typography.titleLarge)
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "Pick 5–10 things you shop for. It takes 30 seconds, and the feed only shows items that match what you buy and keep.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                Spacer(Modifier.height(16.dp))
-                                Button(onClick = { nav.navigate("quiz") }) { Text("Start the quiz") }
-                            }
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp)) {
+                            Text("A feed built from what you actually keep", style = MaterialTheme.typography.headlineSmall)
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "Pick a few things you shop for and Cartwise starts there. Nothing is shown unless it clears a bar; an empty shelf beats a shelf of junk.",
+                                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            Button(onClick = { nav.navigate("quiz") }, modifier = Modifier.height(50.dp)) { Text("Pick what you shop for") }
                         }
                     }
                 }
@@ -247,20 +240,27 @@ fun ForYouScreen(nav: NavController) {
                 if (hasInterests && (vm.more.isNotEmpty() || vm.loading || vm.error != null)) {
                     item("more-h") { SectionHeader("More for you") }
                 }
-                items(vm.more, key = { "m-" + it.asin }) { card ->
-                    MoreCard(
-                        card,
-                        modifier = Modifier,
-                        onOpen = {
-                            scope.launch { Graph.feed.opened(card.asin) }
-                            nav.openProduct(card.toListing())
-                        },
-                        onUp = { scope.launch { Graph.feed.thumb(card, true) } },
-                        onDown = { vm.remove(card.asin); scope.launch { Graph.feed.thumb(card, false) } },
-                        onMore = { menuFor = card },
-                    )
+                items(vm.more.chunked(2), key = { "m-" + it.first().asin }) { pair ->
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { card ->
+                            ProductTile(
+                                card.tile(),
+                                modifier = Modifier.weight(1f),
+                                onOpen = {
+                                    scope.launch { Graph.feed.opened(card.asin); Graph.feed.impression(card.asin) }
+                                    nav.openProduct(card.toListing())
+                                },
+                                onLong = { menuFor = card },
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
-                if (vm.loading) item("more-loading") { Column { ResultSkeleton(); ResultSkeleton() } }
+                if (vm.loading) item("more-loading") {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(Modifier.weight(1f)) { TileSkeleton() }; Box(Modifier.weight(1f)) { TileSkeleton() }
+                    }
+                }
                 vm.error?.let { err ->
                     item("more-err") {
                         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -286,7 +286,18 @@ fun ForYouScreen(nav: NavController) {
     menuFor?.let { card ->
         ModalBottomSheet(onDismissRequest = { menuFor = null }) {
             Column(Modifier.padding(bottom = 24.dp)) {
-                Text("Never show", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                Text(Fmt.short(card.title, 70), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                Text(card.reason, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 24.dp))
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { scope.launch { Graph.feed.thumb(card, true) }; menuFor = null }) {
+                        Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More like this")
+                    }
+                    OutlinedButton(onClick = { vm.remove(card.asin); scope.launch { Graph.feed.thumb(card, false) }; menuFor = null }) {
+                        Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp).rotate(180f)); Spacer(Modifier.width(6.dp)); Text("Less")
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text("Never show", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
                 ListItem(
                     headlineContent = { Text("This item") },
                     supportingContent = { Text(Fmt.short(card.title, 60)) },
@@ -315,74 +326,5 @@ fun ForYouScreen(nav: NavController) {
 @Composable
 private fun FeedCard(card: FeedCardEntity, onOpen: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onMore: () -> Unit) {
     LaunchedEffect(card.asin) { Graph.feed.impression(card.asin) }
-    ElevatedCard(
-        modifier = Modifier.width(236.dp).combinedClickable(onClick = onOpen, onLongClick = onMore),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Column {
-            ProductImage(card.image, Modifier.fillMaxWidth().height(196.dp), card.title, px = 500)
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Text(card.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.height(40.dp))
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (card.price != null) {
-                        Text(Fmt.money(card.price), style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    RatingLine(card.rating, card.reviews)
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    card.reason,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.height(34.dp),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onUp) { Icon(Icons.Filled.ThumbUp, contentDescription = "More like this") }
-                    IconButton(onClick = onDown) {
-                        Icon(Icons.Filled.ThumbUp, contentDescription = "Less like this", modifier = Modifier.rotate(180f))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onMore) { Icon(Icons.Filled.MoreVert, contentDescription = "Never show options") }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MoreCard(card: FeedCardEntity, modifier: Modifier, onOpen: () -> Unit, onUp: () -> Unit, onDown: () -> Unit, onMore: () -> Unit) {
-    LaunchedEffect(card.asin) { Graph.feed.impression(card.asin) }
-    Row(
-        modifier.fillMaxWidth().combinedClickable(onClick = onOpen, onLongClick = onMore).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ProductImage(card.image, Modifier.size(112.dp), card.title)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(card.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (card.price != null) {
-                    Text(Fmt.money(card.price), style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.width(8.dp))
-                }
-                RatingLine(card.rating, card.reviews)
-            }
-            Text(
-                if (card.wildcard) "Wildcard · " + card.reason.removePrefix("Wildcard — ") else card.reason,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (card.wildcard) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onUp) { Icon(Icons.Filled.ThumbUp, contentDescription = "More like this") }
-                IconButton(onClick = onDown) { Icon(Icons.Filled.ThumbUp, contentDescription = "Less like this", modifier = Modifier.rotate(180f)) }
-                IconButton(onClick = onMore) { Icon(Icons.Filled.MoreVert, contentDescription = "Never show options") }
-            }
-        }
-    }
+    ProductTile(card.tile(), modifier = Modifier.width(188.dp), onOpen = onOpen, onLong = onMore)
 }

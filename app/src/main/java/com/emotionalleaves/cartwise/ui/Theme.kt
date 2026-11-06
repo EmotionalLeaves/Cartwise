@@ -58,16 +58,16 @@ private val Dark = darkColorScheme(
     onTertiary = Color(0xFF432A00),
     tertiaryContainer = Color(0xFF5F3F0B),
     onTertiaryContainer = Color(0xFFFFDDB4),
-    background = Color(0xFF111413),
-    onBackground = Color(0xFFE3E2DD),
-    surface = Color(0xFF111413),
+    background = Color(0xFF0F1214),
+    onBackground = Color(0xFFE6E4DE),
+    surface = Color(0xFF0F1214),
     onSurface = Color(0xFFE3E2DD),
     surfaceVariant = Color(0xFF262B29),
     onSurfaceVariant = Color(0xFFBFC2BD),
     surfaceContainerLowest = Color(0xFF0C0F0E),
-    surfaceContainerLow = Color(0xFF181C1B),
-    surfaceContainer = Color(0xFF1C211F),
-    surfaceContainerHigh = Color(0xFF242A28),
+    surfaceContainerLow = Color(0xFF171B1E),
+    surfaceContainer = Color(0xFF1C2124),
+    surfaceContainerHigh = Color(0xFF252B2E),
     surfaceContainerHighest = Color(0xFF2E3432),
     outline = Color(0xFF59605D),
     outlineVariant = Color(0xFF3A403E),
@@ -76,13 +76,19 @@ private val Dark = darkColorScheme(
 
 private val Type = Typography().let { t ->
     t.copy(
-        titleLarge = t.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = t.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, lineHeight = 30.sp),
+        headlineSmall = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, lineHeight = 32.sp, letterSpacing = (-0.4).sp),
+        titleLarge = t.titleLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
+        titleMedium = t.titleMedium.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+        titleSmall = t.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+        bodyLarge = t.bodyLarge.copy(lineHeight = 22.sp),
+        bodyMedium = t.bodyMedium.copy(lineHeight = 19.sp),
+        labelMedium = t.labelMedium.copy(letterSpacing = 0.sp),
+        labelSmall = t.labelSmall.copy(letterSpacing = 0.1.sp),
     )
 }
 
 private val CartShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
     medium = RoundedCornerShape(16.dp),
     large = RoundedCornerShape(22.dp),

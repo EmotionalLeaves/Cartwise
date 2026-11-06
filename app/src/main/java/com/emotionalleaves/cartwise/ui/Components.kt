@@ -50,7 +50,7 @@ fun Screen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.headlineSmall) },
                 navigationIcon = {
                     if (nav != null) {
                         IconButton(onClick = { nav.popBackStack() }) {
@@ -80,10 +80,10 @@ fun AccountButton(nav: NavController) {
 
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
 @Composable
-fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400) {
+fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400, radius: androidx.compose.ui.unit.Dp = 14.dp) {
     var failed by remember(url) { mutableStateOf(false) }
     Box(
-        modifier.clip(RoundedCornerShape(14.dp)).background(Color.White),
+        modifier.clip(RoundedCornerShape(radius)).background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
         if (url.isNotBlank() && !failed) {
@@ -211,13 +211,10 @@ fun Banner(text: String, actionLabel: String? = null, onAction: (() -> Unit)? = 
 
 @Composable
 fun EmptyState(title: String, body: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(20.dp))
             Button(onClick = onAction) { Text(actionLabel) }

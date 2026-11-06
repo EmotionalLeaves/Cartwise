@@ -1,16 +1,25 @@
 @file:OptIn(
     androidx.compose.material3.ExperimentalMaterial3Api::class,
     androidx.compose.foundation.ExperimentalFoundationApi::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
 )
 
 package com.emotionalleaves.cartwise.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -138,10 +147,20 @@ fun SearchScreen(nav: NavController) {
             }
             if (saved.isEmpty() && recent.isEmpty()) {
                 item {
-                    EmptyState(
-                        "Search Amazon, without the noise",
-                        "Results come back with sponsored slots removed, clone listings folded together, unit prices shown, and your own ranking on top.",
-                    )
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
+                        Text("Try", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("usb c cable", "sound bar", "air fryer", "running shoes", "desk lamp", "coffee grinder").forEach { q ->
+                                SuggestionChip(onClick = { go(q) }, label = { Text(q) })
+                            }
+                        }
+                        Spacer(Modifier.height(28.dp))
+                        Text(
+                            "Results arrive with sponsored slots removed, near-identical listings folded together, unit prices shown and your own ranking on top.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -343,76 +362,69 @@ fun ResultsScreen(nav: NavController, query: String) {
     val vm: ResultsVm = viewModel(key = "results:$query") { ResultsVm(query) }
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var why by remember { mutableStateOf<Ranked?>(null) }
+    var options by remember { mutableStateOf<Ranked?>(null) }
     var adjust by remember { mutableStateOf(false) }
-    val expanded = remember { mutableStateMapOf<String, Boolean>() }
 
     Screen(query, nav, snack) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (val s = vm.state) {
-                ResultsVm.St.Loading -> Column { repeat(6) { ResultSkeleton() } }
+                ResultsVm.St.Loading -> GridSkeleton()
                 is ResultsVm.St.Failed -> ErrorState(s.reason, s.message, onRetry = { vm.retry() }, onOpenPage = { nav.openWeb(vm.pageUrl) })
                 is ResultsVm.St.Fallback -> Column(Modifier.fillMaxSize()) {
                     Banner("Simplified view unavailable — showing Amazon's page", "Retry") { vm.retry() }
                     AmazonPage(s.url, PageMode.RAW, Modifier.weight(1f))
                 }
                 ResultsVm.St.Ready -> Column(Modifier.fillMaxSize()) {
-                    PresetRow(vm.preset, vm.custom != null, onPick = { vm.choose(it) }, onAdjust = { adjust = true }, saleOnly = vm.saleOnly, onSaleOnly = { vm.toggleSaleOnly(it) })
-                    val list = rememberLazyListState()
-                    LaunchedEffect(list) {
+                    SortBar(
+                        preset = vm.preset, custom = vm.custom != null, saleOnly = vm.saleOnly,
+                        onPick = { vm.choose(it) }, onAdjust = { adjust = true }, onSaleOnly = { vm.toggleSaleOnly(it) },
+                        count = vm.ranked.size,
+                    )
+                    val grid = rememberLazyGridState()
+                    LaunchedEffect(grid) {
                         snapshotFlow {
-                            val info = list.layoutInfo
+                            val info = grid.layoutInfo
                             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 10) to info.totalItemsCount
+                            (info.totalItemsCount > 0 && last >= info.totalItemsCount - 8) to info.totalItemsCount
                         }.distinctUntilChanged().collect { (near, _) -> if (near) vm.more() }
                     }
-                    LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        state = grid,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 32.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         if (vm.ranked.isEmpty()) {
-                            item { EmptyState("Nothing left to show", "Everything on this page was hidden by your filters or blocklist.") }
+                            item(span = { GridItemSpan(2) }) { EmptyState("Nothing to show", "Everything on this page is hidden by your filters.") }
                         }
-                        vm.ranked.forEach { r ->
-                            item(key = r.item.asin) {
-                                SwipeRow(
-                                    modifier = Modifier,
-                                    onHide = {
-                                        vm.hide(r.item)
-                                        scope.launch { snack.showSnackbar("Hidden from your results") }
-                                    },
-                                    onWatch = {
-                                        vm.watch(r.item)
-                                        scope.launch { snack.showSnackbar("Added to your watchlist") }
-                                    },
-                                ) {
-                                    ResultCard(
-                                        r,
-                                        tagSponsored = !vm.hidesSponsored,
-                                        expanded = expanded[r.item.asin] == true,
-                                        onOpen = { nav.openProduct(r.item) },
-                                        onLong = { why = r },
-                                        onToggleSimilar = { expanded[r.item.asin] = expanded[r.item.asin] != true },
-                                    )
-                                }
-                            }
-                            if (expanded[r.item.asin] == true) {
-                                items(r.similar, key = { r.item.asin + "~" + it.asin }) { s -> SimilarRow(s) { nav.openProduct(s) } }
-                            }
+                        items(vm.ranked, key = { it.item.asin }) { r ->
+                            val l = r.item
+                            val similar = if (r.similar.isNotEmpty()) "+${r.similar.size} similar" else null
+                            ProductTile(
+                                l.tile(tag = if (l.sponsored) "Sponsored" else similar),
+                                onOpen = { nav.openProduct(l) },
+                                onLong = { options = r },
+                            )
                         }
-                        if (vm.loadingMore) item("more") { Column { ResultSkeleton(); ResultSkeleton() } }
+                        if (vm.loadingMore) items(4) { TileSkeleton() }
                         vm.moreError?.let { err ->
-                            item("more-error") {
-                                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            item(span = { GridItemSpan(2) }) {
+                                Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                                     TextButton(onClick = { vm.more() }) { Text("Try again") }
                                 }
                             }
                         }
                         if (vm.endReached) {
-                            item("end") {
+                            item(span = { GridItemSpan(2) }) {
                                 Text(
-                                    "That's everything Amazon has for \"$query\".",
+                                    "That's everything for \"$query\".",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 )
                             }
                         }
@@ -422,17 +434,35 @@ fun ResultsScreen(nav: NavController, query: String) {
         }
     }
 
-    why?.let { r ->
-        ModalBottomSheet(onDismissRequest = { why = null }) {
-            WhyRank(
-                r,
-                onHideBrand = {
-                    vm.blockBrand(r.item); why = null
-                    scope.launch { snack.showSnackbar("Hiding " + r.item.brand.ifBlank { "this brand" } + " everywhere") }
-                },
-                onHideItem = { vm.hide(r.item); why = null },
-                onWatch = { vm.watch(r.item); why = null; scope.launch { snack.showSnackbar("Added to your watchlist") } },
-            )
+    options?.let { r ->
+        ModalBottomSheet(onDismissRequest = { options = null }) {
+            Column(Modifier.padding(bottom = 24.dp)) {
+                Row(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ProductImage(r.item.image, Modifier.size(56.dp), r.item.title, px = 200)
+                    Spacer(Modifier.width(12.dp))
+                    Text(r.item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                ListItem(headlineContent = { Text("Add to watchlist") }, modifier = Modifier.clickable {
+                    vm.watch(r.item); options = null; scope.launch { snack.showSnackbar("Added to your watchlist") }
+                })
+                ListItem(headlineContent = { Text("Hide this item") }, modifier = Modifier.clickable { vm.hide(r.item); options = null })
+                ListItem(headlineContent = { Text("Hide everything from " + r.item.brand.ifBlank { "this brand" }) }, modifier = Modifier.clickable {
+                    vm.blockBrand(r.item); options = null; scope.launch { snack.showSnackbar("Hidden everywhere in Cartwise") }
+                })
+                if (r.similar.isNotEmpty()) {
+                    SectionHeader("${r.similar.size} near-identical listings")
+                    r.similar.forEach { s ->
+                        ListItem(
+                            leadingContent = { ProductImage(s.image, Modifier.size(44.dp), s.title, px = 150) },
+                            headlineContent = { Text(s.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall) },
+                            supportingContent = { Text(Fmt.money(s.price).ifBlank { s.priceText }) },
+                            modifier = Modifier.clickable { options = null; nav.openProduct(s) },
+                        )
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                WhyRank(r)
+            }
         }
     }
     if (adjust) {
@@ -442,19 +472,43 @@ fun ResultsScreen(nav: NavController, query: String) {
     }
 }
 
+/** One sort control and one filter, instead of a row of chips. */
 @Composable
-internal fun PresetRow(
-    current: Preset,
+internal fun SortBar(
+    preset: Preset,
     custom: Boolean,
+    saleOnly: Boolean?,
     onPick: (Preset) -> Unit,
     onAdjust: (() -> Unit)?,
-    saleOnly: Boolean? = null,
     onSaleOnly: (Boolean) -> Unit = {},
+    count: Int? = null,
 ) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box {
+            TextButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Text(if (custom) "Custom ranking" else preset.label, style = MaterialTheme.typography.titleSmall)
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = "Change sort")
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                Preset.entries.forEach { p ->
+                    DropdownMenuItem(
+                        text = { Text(p.label) },
+                        onClick = { open = false; onPick(p) },
+                        trailingIcon = if (!custom && p == preset) ({ Icon(Icons.Filled.Check, contentDescription = null) }) else null,
+                    )
+                }
+                if (onAdjust != null) {
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("Adjust weights…") }, onClick = { open = false; onAdjust() })
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        if (count != null) {
+            Text("$count", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+        }
         if (saleOnly != null) {
             FilterChip(
                 selected = saleOnly,
@@ -463,132 +517,31 @@ internal fun PresetRow(
                 leadingIcon = if (saleOnly) ({ Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }) else null,
             )
         }
-        Preset.entries.forEach { p ->
-            FilterChip(selected = !custom && p == current, onClick = { onPick(p) }, label = { Text(p.label) })
-        }
-        if (onAdjust != null) FilterChip(selected = custom, onClick = onAdjust, label = { Text(if (custom) "Custom" else "Adjust") })
     }
 }
 
 @Composable
-private fun SwipeRow(onHide: () -> Unit, onWatch: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val hide by rememberUpdatedState(onHide)
-    val watch by rememberUpdatedState(onWatch)
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { v ->
-            when (v) {
-                SwipeToDismissBoxValue.EndToStart -> { hide(); true }
-                SwipeToDismissBoxValue.StartToEnd -> { watch(); false }
-                SwipeToDismissBoxValue.Settled -> false
-            }
-        },
-    )
-    SwipeToDismissBox(
-        state = state,
-        modifier = modifier,
-        backgroundContent = {
-            val toWatch = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            Box(
-                Modifier.fillMaxSize()
-                    .background(if (toWatch) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = if (toWatch) Alignment.CenterStart else Alignment.CenterEnd,
-            ) {
-                Text(
-                    if (toWatch) "Watchlist" else "Hide",
-                    color = if (toWatch) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        },
-    ) { content() }
-}
-
-@Composable
-internal fun ResultCard(
-    r: Ranked,
-    tagSponsored: Boolean,
-    expanded: Boolean,
-    onOpen: () -> Unit,
-    onLong: () -> Unit,
-    onToggleSimilar: () -> Unit,
-) {
-    val l = r.item
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Row(
-            Modifier.fillMaxWidth()
-                .combinedClickable(onClick = onOpen, onLongClick = onLong, onLongClickLabel = "Why this rank")
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            ProductImage(l.image, Modifier.size(108.dp), l.title)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                if (tagSponsored && l.sponsored) {
-                    Pill("Sponsored")
-                    Spacer(Modifier.height(4.dp))
-                }
-                Text(l.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                PriceLine(l.price, l.priceText, l.unitPrice, if (l.discountPct > 0) Fmt.money(l.listPrice) else "")
-                if (l.discountPct > 0) {
-                    Spacer(Modifier.height(2.dp))
-                    DiscountPill(l.discountPct)
-                }
-                Spacer(Modifier.height(2.dp))
-                RatingLine(if (l.rating != null) r.bayes else null, l.reviews)
-                if (l.deliveryText.isNotBlank() || l.deliveryDays != null) {
-                    Text(
-                        Fmt.delivery(l.deliveryDays, l.deliveryText),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if ((l.deliveryDays ?: 9) <= 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SellerBadge(l.seller)
-                    if (r.similar.isNotEmpty()) {
-                        TextButton(onClick = onToggleSimilar, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                            Text(if (expanded) "Hide similar" else "+${r.similar.size} similar", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onLong, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Filled.Info,
-                            contentDescription = "Why this rank",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
+internal fun TileSkeleton() {
+    Column(Modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+        SkeletonBox(Modifier.fillMaxWidth().aspectRatio(1f))
+        Column(Modifier.padding(12.dp)) {
+            SkeletonBox(Modifier.fillMaxWidth().height(14.dp)); Spacer(Modifier.height(6.dp))
+            SkeletonBox(Modifier.fillMaxWidth(0.7f).height(14.dp)); Spacer(Modifier.height(10.dp))
+            SkeletonBox(Modifier.width(70.dp).height(18.dp))
         }
     }
 }
 
 @Composable
-private fun SimilarRow(l: Listing, onOpen: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 48.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ProductImage(l.image, Modifier.size(56.dp), l.title)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(l.title, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (l.price != null) Fmt.money(l.price) else l.priceText, style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.width(8.dp))
-                RatingLine(l.rating, l.reviews)
-            }
-        }
-    }
+internal fun GridSkeleton() {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2), userScrollEnabled = false,
+        contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) { items(6) { TileSkeleton() } }
 }
 
 @Composable
-internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit, onWatch: () -> Unit) {
+internal fun WhyRank(r: Ranked) {
     val explain = listOf(
         "Bayesian rating ${Fmt.stars(r.bayes)} from ${Fmt.stars(r.item.rating)}★ × ${Fmt.count(r.item.reviews)} reviews, vs. others on this page",
         if (r.item.unitPrice != null) "Unit price ${r.item.unitPrice.label()} vs. this page" else "Price ${Fmt.money(r.item.price)} vs. this page",
@@ -624,12 +577,6 @@ internal fun WhyRank(r: Ranked, onHideBrand: () -> Unit, onHideItem: () -> Unit,
         }
         r.notes.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
         if (r.similar.isNotEmpty()) Text("• Grouped with ${r.similar.size} near-identical listings; this one scored best", style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onHideBrand) { Text("Hide this brand") }
-            OutlinedButton(onClick = onHideItem) { Text("Hide item") }
-        }
-        TextButton(onClick = onWatch) { Text("Add to watchlist") }
     }
 }
 
