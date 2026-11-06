@@ -1,0 +1,143 @@
+Printing with useUnmergedTree = 'false'
+Node #1 at (l=0.0, t=0.0, r=1080.0, b=2400.0)px
+ |-Node #2 at (l=0.0, t=0.0, r=1080.0, b=2400.0)px
+   IsTraversalGroup = 'true'
+    |-Node #2476 at (l=0.0, t=0.0, r=1080.0, b=2127.0)px
+    | IsTraversalGroup = 'true'
+    |  |-Node #2497 at (l=0.0, t=296.0, r=1080.0, b=422.0)px
+    |  | IsTraversalGroup = 'true'
+    |  | HorizontalScrollAxisRange = 'ScrollAxisRange(value=0.0, maxValue=0.0, reverseScrolling=false)'
+    |  | Actions = [ScrollBy, ScrollByOffset]
+    |  |  |-Node #2498 at (l=32.0, t=317.0, r=239.0, b=401.0)px
+    |  |  | Focused = 'false'
+    |  |  | Selected = 'true'
+    |  |  | Role = 'Checkbox'
+    |  |  | Text = '[For you]'
+    |  |  | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2502 at (l=260.0, t=317.0, r=444.0, b=401.0)px
+    |  |  | Focused = 'false'
+    |  |  | Selected = 'false'
+    |  |  | Role = 'Checkbox'
+    |  |  | Text = '[Outlet]'
+    |  |  | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2506 at (l=465.0, t=317.0, r=693.0, b=401.0)px
+    |  |  | Focused = 'false'
+    |  |  | Selected = 'false'
+    |  |  | Role = 'Checkbox'
+    |  |  | Text = '[Like new]'
+    |  |  | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2510 at (l=714.0, t=317.0, r=891.0, b=401.0)px
+    |  |    Focused = 'false'
+    |  |    Selected = 'false'
+    |  |    Role = 'Checkbox'
+    |  |    Text = '[Deals]'
+    |  |    Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |    MergeDescendants = 'true'
+    |  |-Node #2514 at (l=32.0, t=438.0, r=1048.0, b=585.0)px
+    |  | EditableText = ''
+    |  | TextSelectionRange = 'TextRange(0, 0)'
+    |  | IsEditable = 'true'
+    |  | ImeAction = 'Search'
+    |  | Focused = 'false'
+    |  | Text = '[Search for you deals]'
+    |  | Actions = [GetTextLayoutResult, SetText, InsertTextAtCursor, SetSelection, PerformImeAction, OnClick, OnLongClick, PasteText, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution]
+    |  | MergeDescendants = 'true'
+    |  |-Node #2528 at (l=42.0, t=627.0, r=860.0, b=711.0)px
+    |  | Text = '[Outlet and like-new deals that match what you buy and keep.]'
+    |  | Actions = [SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |-Node #2529 at (l=860.0, t=627.0, r=1048.0, b=711.0)px
+    |  | Focused = 'false'
+    |  | Selected = 'false'
+    |  | Role = 'Checkbox'
+    |  | Text = '[Filters]'
+    |  | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  | MergeDescendants = 'true'
+    |  |-Node #2533 at (l=0.0, t=737.0, r=1080.0, b=2127.0)px, Tag: 'outlet-list'
+    |  | IsTraversalGroup = 'true'
+    |  | VerticalScrollAxisRange = 'ScrollAxisRange(value=0.0, maxValue=100.0, reverseScrolling=false)'
+    |  | CollectionInfo = 'androidx.compose.ui.semantics.CollectionInfo@8c9a6c9'
+    |  | Actions = [ScrollBy, ScrollByOffset, IndexForKey, ScrollToIndex, GetScrollViewportLength]
+    |  |  |-Node #2571 at (l=32.0, t=748.0, r=528.0, b=1575.0)px
+    |  |  | Focused = 'false'
+    |  |  | ContentDescription = '[Titanium Cup Ultralight Camping Mug with Foldable Handle & Lid, Pure Titanium Cookware for Outdoor Hiking, Backpacking, Picnic, and Campfire]'
+    |  |  | Text = '[Titanium Cup Ultralight Camping Mug with Foldable Handle & Lid, Pure Titanium Cookware for Outdoor Hiking, Backpacking, Picnic, and Campfire, $29.99, 4.8 ★  131, For your interest: Tea & Camping]'
+    |  |  | Actions = [OnClick, RequestFocus, OnLongClick, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2585 at (l=554.0, t=748.0, r=1049.0, b=1574.0)px
+    |  |  | Focused = 'false'
+    |  |  | ContentDescription = '[250ml Camping Sierra Cups, Stackable Coffee Mug, 2-Pack]'
+    |  |  | Text = '[250ml Camping Sierra Cups, Stackable Coffee Mug, 2-Pack, $4.99, 4.0 ★  6, For your interest: Tea & Camping]'
+    |  |  | Actions = [OnClick, RequestFocus, OnLongClick, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2599 at (l=32.0, t=1601.0, r=528.0, b=2428.0)px
+    |  |  | Focused = 'false'
+    |  |  | ContentDescription = '[Lixada Camping Pot Stainless Steel Lightweight Kettle Bottle Cup or Pot with Foldable Handle and Dual Use Cover for Camping Hiking Backpacking Picnic]'
+    |  |  | Text = '[Lixada Camping Pot Stainless Steel Lightweight Kettle Bottle Cup or Pot with Foldable Handle and Dual Use Cover for Camping Hiking Backpacking Picnic, $24.98, 4.4 ★  119, For your interest: Tea & Camping]'
+    |  |  | Actions = [OnClick, RequestFocus, OnLongClick, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |  | MergeDescendants = 'true'
+    |  |  |-Node #2620 at (l=554.0, t=1601.0, r=1049.0, b=2427.0)px
+    |  |    Focused = 'false'
+    |  |    ContentDescription = '[Wireless Earbuds, Bluetooth 5.4 Headphones Bass Stereo/Clear Call,Rose Gold]'
+    |  |    IsTraversalGroup = 'true'
+    |  |    Text = '[−35%, Wireless Earbuds, Bluetooth 5.4 Headphones Bass Stereo/Clear Call,Rose Gold, $23.99, $36.99, 4.4 ★  59K, For your interest: Headphones & audio]'
+    |  |    Actions = [OnClick, RequestFocus, OnLongClick, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |  |    MergeDescendants = 'true'
+    |  |-Node #2479 at (l=0.0, t=0.0, r=1080.0, b=296.0)px
+    |    IsTraversalGroup = 'true'
+    |     |-Node #2483 at (l=43.0, t=172.0, r=224.0, b=252.0)px
+    |     | Text = '[Outlet]'
+    |     | Actions = [SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |     |-Node #2486 at (l=731.0, t=160.0, r=943.0, b=265.0)px
+    |     | Focused = 'false'
+    |     | Role = 'Button'
+    |     | Text = '[Full page]'
+    |     | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+    |     | MergeDescendants = 'true'
+    |     |-Node #2489 at (l=954.0, t=160.0, r=1059.0, b=265.0)px
+    |       Role = 'Button'
+    |       Focused = 'false'
+    |       ContentDescription = '[Account and settings]'
+    |       Actions = [OnClick, RequestFocus]
+    |       MergeDescendants = 'true'
+    |-Node #2293 at (l=0.0, t=2127.0, r=1080.0, b=2400.0)px
+      IsTraversalGroup = 'true'
+       |-Node #2294 at (l=0.0, t=2127.0, r=1080.0, b=2337.0)px
+         [SelectableGroup]
+          |-Node #2295 at (l=0.0, t=2127.0, r=200.0, b=2337.0)px, Tag: 'tab-foryou'
+          | Role = 'Tab'
+          | Focused = 'false'
+          | Selected = 'false'
+          | Text = '[For You]'
+          | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+          | MergeDescendants = 'true'
+          |-Node #2304 at (l=221.0, t=2127.0, r=420.0, b=2337.0)px, Tag: 'tab-search'
+          | Role = 'Tab'
+          | Focused = 'false'
+          | Selected = 'false'
+          | Text = '[Search]'
+          | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+          | MergeDescendants = 'true'
+          |-Node #2313 at (l=441.0, t=2127.0, r=640.0, b=2337.0)px, Tag: 'tab-outlet'
+          | Role = 'Tab'
+          | Focused = 'false'
+          | Selected = 'true'
+          | Text = '[Outlet]'
+          | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+          | MergeDescendants = 'true'
+          |-Node #2322 at (l=661.0, t=2127.0, r=860.0, b=2337.0)px, Tag: 'tab-lists'
+          | Role = 'Tab'
+          | Focused = 'false'
+          | Selected = 'false'
+          | Text = '[Lists]'
+          | Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+          | MergeDescendants = 'true'
+          |-Node #2331 at (l=881.0, t=2127.0, r=1080.0, b=2337.0)px, Tag: 'tab-cart'
+            Role = 'Tab'
+            Focused = 'false'
+            Selected = 'false'
+            Text = '[Cart]'
+            Actions = [OnClick, RequestFocus, SetTextSubstitution, ShowTextSubstitution, ClearTextSubstitution, GetTextLayoutResult]
+            MergeDescendants = 'true'

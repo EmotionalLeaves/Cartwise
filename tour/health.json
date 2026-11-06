@@ -1,0 +1,47 @@
+{
+  "search": {
+    "count": 18,
+    "ok": true,
+    "url": "https:\/\/www.amazon.com\/s?k=usb+c+cable&page=1",
+    "fields": {
+      "title": 1,
+      "price": 1,
+      "rating": 1,
+      "reviews": 1,
+      "image": 1,
+      "delivery": 1,
+      "unit price": 0,
+      "list price": 0.8333333333333334
+    },
+    "notes": []
+  },
+  "tiles": {
+    "count": 31,
+    "ok": true,
+    "url": "https:\/\/www.amazon.com\/gp\/bestsellers\/electronics",
+    "fields": {
+      "title": 1,
+      "price": 0.9354838709677419,
+      "image": 0.967741935483871
+    },
+    "notes": []
+  },
+  "product": {
+    "count": 1,
+    "ok": true,
+    "url": "https:\/\/www.amazon.com\/dp\/B088NRLMPV",
+    "fields": {
+      "title": 1,
+      "price": 1,
+      "images": 1,
+      "rating": 1,
+      "delivery": 1,
+      "sold by": 1,
+      "category": 1,
+      "add to cart": 1
+    },
+    "notes": [
+      "category:best-sellers-rank"
+    ]
+  }
+}

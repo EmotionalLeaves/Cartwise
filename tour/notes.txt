@@ -1,0 +1,51 @@
+Cartwise tour, build 1.0.10
+shot 01-for-you-first-launch
+OK   launch (3520 ms)
+shot 02-quiz
+OK   quiz (6585 ms)
+shot 03-for-you-refreshing
+OK   for-you-refreshing (8149 ms)
+shot 04-search-empty
+shot 05-results
+OK   search (41977 ms)
+shot 06-results-scrolled
+shot 07-results-deep
+OK   results-scroll (12256 ms)
+shot 08-results-discount
+shot 09-results-on-sale
+OK   results-sort (6478 ms)
+shot 09b-filters-sheet
+shot 09c-results-filtered
+filtered count: 0
+OK   results-filters (8910 ms)
+shot 10-product
+shot 11-product-similar
+scrollTo See all: No node found that matches Text + EditableText contains 'See all' (ignoreCase: false) as substring i
+shot 12-product-reviews
+FAIL product (28305 ms): ComposeTimeoutException: Condition still not satisfied after 15000 ms
+shot fail-product
+shot 14-outlet-for-you
+shot 15-outlet-like-new
+shot 16-outlet-deals
+shot 16b-outlet-deals-filtered
+OK   outlet (66388 ms)
+shot 17-lists
+OK   lists (2615 ms)
+shot 18-cart
+OK   cart (11038 ms)
+shot 19-for-you-after
+FAIL for-you-after (84128 ms): ComposeNotIdleException: Idling resource timed out: possibly due to compose being busy.
+IdlingResourceRegistry has the following idling resources registered:
+- [busy] androidx.compose.ui.test.ComposeIdlingResource@a43a223 
+All registered idling resources: Compose-Espresso link
+shot fail-for-you-after
+shot 21-account
+OK   account (14226 ms)
+shot 22-self-check
+OK   self-check (7922 ms)
+shot 23-demo-grid
+shot 24-demo-product
+shot 25-demo-product-lower
+OK   demo (14260 ms)
+OK   save-html (18174 ms)
+done
