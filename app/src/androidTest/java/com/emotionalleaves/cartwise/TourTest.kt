@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -45,6 +46,17 @@ class TourTest {
     private fun note(s: String) {
         notes.appendLine(s)
         File(dir, "notes.txt").writeText(notes.toString())
+    }
+
+    /** For You's refresh spinner keeps Compose busy; wait it out (without needing an idle UI). */
+    private fun waitFeedIdle(maxMs: Long = 90_000) {
+        val end = System.currentTimeMillis() + maxMs
+        while (Graph.feed.progress.value.running && System.currentTimeMillis() < end) Thread.sleep(500)
+    }
+
+    private fun scrollTo(t: String) {
+        try { scroller().performScrollToNode(hasText(t, substring = true)) } catch (e: Throwable) { note("scrollTo $t: ${e.message?.take(100)}") }
+        idle()
     }
 
     private fun idle() {
@@ -135,6 +147,7 @@ class TourTest {
         step("for-you-refreshing") { shot("03-for-you-refreshing", 8000); dumpState() }
 
         step("search") {
+            waitFeedIdle()
             tab("search")
             shot("04-search-empty")
             rule.onAllNodes(hasSetTextAction()).onFirst().performTextInput("sound bar")
@@ -155,6 +168,16 @@ class TourTest {
             shot("08-results-discount", 2000)
             clickText("On sale")
             shot("09-results-on-sale", 2000)
+            clickText("On sale")
+        }
+        step("results-filters") {
+            clickText("Filters")
+            shot("09b-filters-sheet", 1500)
+            clickText("4★ & up")
+            clickText("Prime or Amazon")
+            clickText("Show results")
+            shot("09c-results-filtered", 6000)
+            note("filtered count: " + rule.onAllNodes(hasText("Filters · 2")).fetchSemanticsNodes().size)
         }
         step("product") {
             // Open the first non-sponsored result, the same way a price-alert notification does.
@@ -163,10 +186,17 @@ class TourTest {
             Graph.pendingAsin.value = first.asin
             waitText("Add to cart", 60_000)
             shot("10-product", 4000)
-            swipe(2)
-            shot("11-product-lower", 2000)
+            scrollTo("Other items like this")
+            shot("11-product-similar", 4000)
+            scrollTo("Reviews")
             clickText("Reviews")
+            scrollTo("See all")
             shot("12-product-reviews", 1500)
+            clickText("See all", substring = true)
+            shot("12b-all-reviews", 8000)
+            rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            Thread.sleep(800)
+            scrollTo("Details")
             clickText("Details")
             shot("13-product-details", 1500)
             rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
@@ -181,6 +211,10 @@ class TourTest {
             shot("15-outlet-like-new", 15_000)
             clickText("Deals")
             shot("16-outlet-deals", 15_000)
+            clickText("Filters")
+            clickText("25% off+")
+            clickText("Show results")
+            shot("16b-outlet-deals-filtered", 8000)
         }
 
         step("lists") {
@@ -192,6 +226,7 @@ class TourTest {
             shot("18-cart", 8000)
         }
         step("for-you-after") {
+            waitFeedIdle()
             tab("foryou")
             shot("19-for-you-after", 5000)
             swipe(3)
@@ -222,7 +257,10 @@ class TourTest {
         step("save-html") {
             var ua = ""
             rule.runOnUiThread { ua = Graph.engine.view().settings.userAgentString ?: "" }
+            val asin = HealthLog.lastListings.value.firstOrNull { !it.sponsored }?.asin ?: "B088NRLMPV"
             val pages = mapOf(
+                "product" to "https://www.amazon.com/dp/$asin",
+                "reviews" to "https://www.amazon.com/product-reviews/$asin?pageNumber=1&sortBy=helpful&filterByStar=all_stars&reviewerType=all_reviews",
                 "bestsellers-electronics" to "https://www.amazon.com/gp/bestsellers/electronics",
                 "deals" to "https://www.amazon.com/s?rh=p_n_deal_type%3A23566064011&page=1",
                 "outlet" to "https://www.amazon.com/s?k=headphones&rh=n%3A517808&page=1",

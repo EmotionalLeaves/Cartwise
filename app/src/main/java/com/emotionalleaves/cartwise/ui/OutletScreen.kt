@@ -120,6 +120,25 @@ class OutletVm : ViewModel() {
     fun search(q: String) { query = q.trim(); restart() }
     fun sortBy(p: Preset) { preset = p; rerank() }
 
+    var filters by mutableStateOf(com.emotionalleaves.cartwise.rank.Filters())
+        private set
+
+    /** Brands in what's loaded so far, for the brand filter. */
+    val brandsSeen: List<Pair<String, String>>
+        get() = (pages.flatten() + rows.map { it.l }).groupBy { Ranker.brandKey(it) }
+            .filter { it.key.isNotBlank() && it.key.length < 30 }
+            .entries.sortedByDescending { it.value.size }.take(20)
+            .map { it.key to it.value.first().brand.ifBlank { it.key } }
+
+    /** Rows that pass the filters (For you is scored by taste, so it's filtered here rather than reranked). */
+    val shown: List<OutletRow> get() = if (section == OutletSection.FOR_YOU) rows.filter { filters.keep(it.l) } else rows
+
+    fun applyFilters(f: com.emotionalleaves.cartwise.rank.Filters) {
+        val priceChanged = f.minPrice != filters.minPrice || f.maxPrice != filters.maxPrice
+        filters = f
+        if (priceChanged) restart() else { rerank(); if (shown.size < 12 && !ended) loadMore() }
+    }
+
     fun restart() {
         job?.cancel()
         rows.clear(); pages.clear(); page = 1; step = 0; empties = 0
@@ -128,7 +147,7 @@ class OutletVm : ViewModel() {
     }
 
     private fun url(name: String, q: String, page: Int): String {
-        val u = Graph.shop.url(name, "q" to ShopRepo.enc(q), "page" to page.toString())
+        val u = Graph.shop.url(name, "q" to ShopRepo.enc(q), "page" to page.toString()) + filters.amazonParams()
         return if (q.isBlank()) u.replace("k=&", "").replace("&k=", "").replace("?&", "?") else u
     }
 
@@ -208,7 +227,7 @@ class OutletVm : ViewModel() {
 
     private fun rerank() {
         if (section == OutletSection.FOR_YOU) return
-        val ctx = Ranker.Ctx(query, preset, null, hideSponsored, hidden, blockedBrands)
+        val ctx = Ranker.Ctx(query, preset, null, hideSponsored, hidden, blockedBrands, filters = filters)
         val out = ArrayList<OutletRow>()
         val shown = HashSet<String>()
         for (pg in pages) for (r in Ranker.rank(pg.filter { it.asin !in shown }, ctx)) {
@@ -233,6 +252,12 @@ fun OutletScreen(nav: NavController) {
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val grid = rememberLazyGridState()
+    var showFilters by remember { mutableStateOf(false) }
+    if (showFilters) {
+        ModalBottomSheet(onDismissRequest = { showFilters = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            FilterSheet(vm.filters, vm.brandsSeen, onApply = { vm.applyFilters(it); showFilters = false })
+        }
+    }
 
     LaunchedEffect(grid) {
         snapshotFlow {
@@ -274,14 +299,21 @@ fun OutletScreen(nav: NavController) {
                 keyboardActions = KeyboardActions(onSearch = { vm.search(text) }),
             )
             if (vm.section != OutletSection.FOR_YOU) {
-                SortBar(vm.preset, false, saleOnly = null, onPick = { vm.sortBy(it) }, onAdjust = null, count = vm.rows.size)
+                SortBar(vm.preset, false, saleOnly = null, onPick = { vm.sortBy(it) }, onAdjust = null, count = vm.shown.size,
+                    filtersActive = vm.filters.active, onFilters = { showFilters = true })
             } else {
-                Text(
-                    vm.section.blurb,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                )
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        vm.section.blurb,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilterChip(
+                        selected = vm.filters.active > 0, onClick = { showFilters = true },
+                        label = { Text(if (vm.filters.active > 0) "Filters · ${vm.filters.active}" else "Filters") },
+                    )
+                }
             }
             val fb = vm.fallbackUrl
             if (fb != null) {
@@ -304,7 +336,7 @@ fun OutletScreen(nav: NavController) {
                         ) { nav.navigate("quiz") }
                     }
                 }
-                items(vm.rows, key = { it.l.asin }) { r ->
+                items(vm.shown, key = { it.l.asin }) { r ->
                     ProductTile(
                         r.l.tile(line = r.reason ?: Fmt.delivery(r.l.deliveryDays, r.l.deliveryText), accent = r.reason != null),
                         onOpen = { nav.openProduct(r.l) },

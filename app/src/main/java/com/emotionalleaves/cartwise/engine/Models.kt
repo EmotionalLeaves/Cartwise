@@ -46,7 +46,11 @@ data class Review(
     val rating: Double?,
     val author: String,
     val date: String,
+    val verified: Boolean = false,
+    val helpful: String = "",
 )
+
+data class ReviewsPage(val reviews: List<Review>, val total: Int, val average: Double?, val histogram: List<Int>, val hasNext: Boolean)
 
 data class Product(
     val asin: String,
@@ -76,6 +80,8 @@ data class Product(
     val cartCount: Int?,
     val url: String,
     val pctOff: Int = 0,
+    /** Amazon's short "Customers say" summary, when the page has one. */
+    val reviewSummary: String = "",
 ) {
     val listPrice: Double?
         get() = Parse.price(listPriceText) ?: if (pctOff in 1..95 && price != null) price / (1 - pctOff / 100.0) else null

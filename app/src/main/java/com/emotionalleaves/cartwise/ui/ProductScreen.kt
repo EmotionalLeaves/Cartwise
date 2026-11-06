@@ -84,6 +84,7 @@ class ProductVm(val asin: String) : ViewModel() {
                 is Load.Ok -> {
                     val p = r.v
                     state = St.Ready(p)
+                    loadSimilar(p)
                     Graph.signals.logProduct(p, SignalType.OPEN)
                     val blocks = Graph.db.dao().blocks().filter { it.kind == "seller" }.map { it.value }
                     blockedSeller = blocks.any { b -> p.soldBy.lowercase().contains(b) }
@@ -92,6 +93,25 @@ class ProductVm(val asin: String) : ViewModel() {
                     Reason.OFFLINE, Reason.TIMEOUT -> St.Failed(r.reason, r.message)
                     else -> St.Fallback(r.url ?: pageUrl)
                 }
+            }
+        }
+    }
+
+    /** "More like this": a short search built from the product's category and key words, when Amazon's own list is thin. */
+    var similar by mutableStateOf<List<com.emotionalleaves.cartwise.engine.Listing>>(emptyList())
+        private set
+
+    private fun loadSimilar(p: Product) {
+        if (p.related.size >= 8) return
+        viewModelScope.launch {
+            val leaf = p.breadcrumbs.lastOrNull().orEmpty()
+            val words = com.emotionalleaves.cartwise.rank.Words.contentTokens(p.title)
+                .filter { it.length >= 3 && it.none(Char::isDigit) && !it.equals(p.brand, true) }.distinct().take(4)
+            val q = (if (leaf.isNotBlank() && leaf.length < 40) leaf else words.joinToString(" ")).ifBlank { return@launch }
+            val r = Graph.bgShop.search(q, 1)
+            if (r is Load.Ok) {
+                val skip = p.related.map { it.asin }.toHashSet() + p.asin + p.variants.map { it.asin }
+                similar = r.v.items.filter { !it.sponsored && it.asin !in skip && it.title.isNotBlank() }.take(12)
             }
         }
     }
@@ -172,6 +192,7 @@ fun ProductScreen(nav: NavController, asin: String) {
                 is ProductVm.St.Ready -> ProductBody(
                     s.p, nav, vm.pageUrl, vm.adding, vm.watched, vm.blockedSeller,
                     onAdd = { vm.addToCart() }, onWatch = { vm.toggleWatch() }, tab = tab, onTab = { tab = it },
+                    similar = vm.similar,
                 )
             }
         }
@@ -223,6 +244,7 @@ internal fun ProductBody(
     onWatch: () -> Unit,
     tab: Int,
     onTab: (Int) -> Unit,
+    similar: List<com.emotionalleaves.cartwise.engine.Listing> = emptyList(),
 ) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
@@ -294,6 +316,12 @@ internal fun ProductBody(
                     }
                 }
             }
+            if (p.related.isNotEmpty()) {
+                item("related") { SimilarRow("Other items like this", p.related, nav) }
+            }
+            if (similar.isNotEmpty()) {
+                item("similar") { SimilarRow(if (p.related.isEmpty()) "Other items like this" else "More like this", similar, nav) }
+            }
             item("tabs") {
                 Spacer(Modifier.height(16.dp))
                 TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background, divider = {}) {
@@ -332,29 +360,26 @@ internal fun ProductBody(
                     }
                 }
                 1 -> {
-                    if (p.reviewList.isEmpty()) {
-                        item("nor") { Text("No reviews on this page.", modifier = Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
-                    items(p.reviewList.size) { i ->
-                        val r = p.reviewList[i]
+                    item("rsum") {
                         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (r.rating != null) {
-                                    Text(Fmt.stars(r.rating) + " ★", color = Star, style = MaterialTheme.typography.labelLarge)
-                                    Spacer(Modifier.width(8.dp))
-                                }
-                                Text(r.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            ReviewSummary(p.rating, p.reviews, p.histogram)
+                            if (p.reviewSummary.isNotBlank()) {
+                                Spacer(Modifier.height(14.dp))
+                                Text("Customers say", style = MaterialTheme.typography.titleSmall)
+                                Spacer(Modifier.height(4.dp))
+                                Text(p.reviewSummary, style = MaterialTheme.typography.bodyMedium)
                             }
-                            if (r.author.isNotBlank() || r.date.isNotBlank()) {
-                                Text(listOf(r.author, r.date).filter { it.isNotBlank() }.joinToString(", "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(r.body, style = MaterialTheme.typography.bodyMedium, maxLines = 12)
                         }
                     }
+                    if (p.reviewList.isEmpty()) {
+                        item("nor") { Text("No reviews on the product page. See all reviews below.", modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    items(p.reviewList.take(6).size) { i ->
+                        ReviewItem(p.reviewList[i], Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    }
                     item("allr") {
-                        TextButton(onClick = { nav.openWeb(Graph.shop.url("reviews", "asin" to p.asin)) }, modifier = Modifier.padding(horizontal = 12.dp)) {
-                            Text("All reviews on Amazon")
+                        OutlinedButton(onClick = { nav.navigate("reviews/" + p.asin) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                            Text(if (p.reviews > 0) "See all ${Fmt.count(p.reviews)} reviews" else "See all reviews")
                         }
                     }
                 }
@@ -414,5 +439,21 @@ private fun Fact(label: String, value: String, accent: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(92.dp))
         Text(value, style = MaterialTheme.typography.bodyMedium, color = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SimilarRow(title: String, items: List<com.emotionalleaves.cartwise.engine.Listing>, nav: NavController) {
+    Column(Modifier.padding(top = 20.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(items.size, key = { items[it].asin }) { i ->
+                val l = items[i]
+                ProductTile(l.tile(line = ""), modifier = Modifier.width(156.dp), onOpen = { nav.openProduct(l) })
+            }
+        }
     }
 }

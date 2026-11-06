@@ -61,6 +61,17 @@ class ShopRepo(private val engine: WebEngine, private val selectors: SelectorSto
         }
     }
 
+    /** Amazon's full reviews pages. sort: "helpful" or "recent"; star: "all_stars", "five_star" … "one_star", "positive", "critical". */
+    suspend fun reviews(asin: String, page: Int, sort: String, star: String): Load<ReviewsPage> {
+        val u = url("reviews", "asin" to asin, "page" to page.toString(), "sort" to sort, "star" to star)
+        return cached("reviews:$u", 10 * MIN) {
+            when (val r = engine.run(u, "reviews")) {
+                is WebEngine.Res.Ok -> Load.Ok(Extract.reviews(r.json, r.url))
+                is WebEngine.Res.Fail -> fail(r)
+            }
+        }
+    }
+
     suspend fun tiles(u: String): Load<List<Listing>> = cached("tiles:$u", 30 * MIN) {
         when (val r = engine.run(u, "tiles")) {
             is WebEngine.Res.Ok -> Load.Ok(Extract.tiles(r.json, r.url))

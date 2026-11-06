@@ -140,5 +140,12 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - A **Filters** button next to "On sale" opens one sheet: price range (typed or quick ranges), customer rating (4★+, 4.5★+), number of reviews (100+, 1,000+, 10,000+), arrival (today/tomorrow, within 2 or 5 days), seller (Prime or Amazon, sold by Amazon), discount (10/25/50% off+), brand (picked from the brands in your results) and "hide items with no price". The button shows how many filters are on.
 - Price is sent to Amazon (`low-price`/`high-price`), so you get a full page of matches; the other filters apply instantly to loaded results, and if they leave fewer than 12 the app quietly reads more pages (up to 6) to fill the screen.
 
+## Reviews, similar items, Outlet filters
+- **Reviews tab** on the product page: average, rating count, five-to-one star bars, Amazon's "Customers say" summary when there is one, the top reviews (with Verified purchase, helpful votes and Read more), and **See all reviews**.
+- **All reviews screen:** Most helpful or Newest, star filters (All, Critical, 5★…1★), endless scroll. If Amazon wants you signed in for the full list, it says so with a Sign in button.
+- **Other items like this:** the product page now shows Amazon's related items as a row of tiles, plus a "More like this" row built from the product's category when Amazon's list is thin.
+- **Outlet filters:** the same Filters sheet as search, on every Outlet section (price is sent to Amazon; the rest filter instantly).
+- Rules file is version 5 (reviews page selectors).
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

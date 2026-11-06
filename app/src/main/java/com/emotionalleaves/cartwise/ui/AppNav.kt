@@ -70,7 +70,7 @@ fun AppNav() {
         }
     }
 
-    val fullScreen = route.startsWith("web") || route == "login" || route == "quiz" || route.startsWith("product/")
+    val fullScreen = route.startsWith("web") || route == "login" || route == "quiz" || route.startsWith("product/") || route.startsWith("reviews/")
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -136,6 +136,9 @@ fun AppNav() {
             composable("settings") { SettingsScreen(nav) }
             composable("debug") { DebugScreen(nav) }
             composable("check") { SelfCheckScreen(nav) }
+            composable("reviews/{asin}", arguments = listOf(navArgument("asin") { type = NavType.StringType })) { e ->
+                ReviewsScreen(nav, e.arguments?.getString("asin") ?: "")
+            }
             if (com.emotionalleaves.cartwise.BuildConfig.DEBUG) composable("demo") { DemoScreen(nav) }
         }
     }

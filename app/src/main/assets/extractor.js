@@ -214,6 +214,43 @@
     return { items: out, hasNext: !!q(document, S.next) || out.length >= 12, cartCount: qt(document, (cfg.common || {}).cartCount) };
   };
 
+  function readReviews(P, max) {
+    var out = []; var seen = {};
+    qa(document, P.review).slice(0, max).forEach(function (r) {
+      var body = qt(r, P.reviewBody).replace(/\s*Read more\s*$/i, '').slice(0, 3000);
+      var title = qt(r, P.reviewTitle).replace(/^\d(\.\d)? out of 5 stars\s*/, '');
+      var key = title + '|' + body.slice(0, 80); if (seen[key]) return; seen[key] = 1;
+      out.push({
+        title: title,
+        body: body,
+        rating: ratingOf(r, P.reviewRating),
+        author: qt(r, P.reviewAuthor),
+        date: qt(r, P.reviewDate).replace(/^Reviewed in /, ''),
+        verified: !!q(r, P.reviewVerified),
+        helpful: qt(r, P.reviewHelpful)
+      });
+    });
+    return out;
+  }
+  function histogramOf(P) {
+    var hist = [];
+    qa(document, P.histogramRow).forEach(function (r) {
+      var t = at(r, 'aria-label') + ' ' + txt(r); var m = /(\d{1,3})\s*%/.exec(t); if (m) hist.push(parseInt(m[1], 10));
+    });
+    return hist.slice(0, 5);
+  }
+
+  EX.reviews = function (cfg) {
+    var P = cfg.product || {}; var R = cfg.reviewsPage || {};
+    return {
+      reviews: readReviews(P, 20),
+      total: qt(document, R.total),
+      average: ratingOf(document, R.average) || ratingOf(document, P.rating),
+      histogram: histogramOf(P),
+      hasNext: !!q(document, R.next)
+    };
+  };
+
   EX.product = function (cfg) {
     var P = cfg.product || {};
     var asin = asinOf(location.href) || at(document.querySelector('input#ASIN, input[name="ASIN"]'), 'value');
@@ -251,16 +288,7 @@
       v = v.replace(/^[\s:\u200e\u200f]+/, '').trim();
       if (k && v && k.length < 60 && v.length < 300) details.push([k, v]);
     });
-    var reviews = [];
-    qa(document, P.review).slice(0, 12).forEach(function (r) {
-      reviews.push({
-        title: qt(r, P.reviewTitle).replace(/^\d(\.\d)? out of 5 stars\s*/, ''),
-        body: qt(r, P.reviewBody).slice(0, 1500),
-        rating: ratingOf(r, P.reviewRating),
-        author: qt(r, P.reviewAuthor),
-        date: qt(r, P.reviewDate)
-      });
-    });
+    var reviews = readReviews(P, 12);
     var variants = []; var seenV = {};
     var dimSel = arr(P.variantDim).join(',');
     qall(document, P.variantOption).forEach(function (o) {
@@ -344,6 +372,7 @@
       bullets: qa(document, P.bullets).map(txt).filter(function (s) { return s.length > 1; }).slice(0, 15),
       details: details.slice(0, 40),
       reviews: reviews,
+      reviewSummary: qt(document, P.reviewSummary).slice(0, 800),
       breadcrumbs: crumbs,
       variants: variants.slice(0, 60),
       related: rel.slice(0, 30),

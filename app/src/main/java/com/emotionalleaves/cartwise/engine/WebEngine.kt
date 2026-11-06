@@ -229,7 +229,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     val lastUrls = MutableStateFlow<Map<String, String>>(emptyMap())
 
     /** Page kinds read from fetched HTML (fast path). Anything else runs the live page. */
-    private val FAST = setOf("search", "product", "tiles", "lists", "orders")
+    private val FAST = setOf("search", "product", "tiles", "lists", "orders", "reviews")
 
     /** A separate WebView that never touches the network: it only parses HTML we hand it. */
     private var parser: WebView? = null
@@ -295,6 +295,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
             "search" -> json.optJSONArray("items")?.length() ?: 0
             "product" -> if (json.optString("title").isBlank()) 0 else 1
             "tiles" -> json.optJSONArray("items")?.length() ?: 0
+            "reviews" -> json.optJSONArray("reviews")?.length() ?: 0
             else -> 1
         }
         if (n == 0) { fastNote = "parsed but empty"; return null }
@@ -349,7 +350,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     }
 
     /** Kinds that only read a page; once read, the rest of the page (ads, images, scripts) is cancelled. */
-    private val READ_ONLY = setOf("search", "product", "tiles", "lists", "orders", "snapshot")
+    private val READ_ONLY = setOf("search", "product", "tiles", "lists", "orders", "snapshot", "reviews")
 
     private fun needsSecondLook(j: JSONObject): Boolean =
         j.optString("price").isBlank() || j.optString("delivery").isBlank() || (j.optJSONArray("images")?.length() ?: 0) == 0

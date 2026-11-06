@@ -118,9 +118,7 @@ object Extract {
         val variants = j.optJSONArray("variants").objects().map {
             Variant(it.optString("dim"), it.optString("label"), it.optString("asin"), it.optBoolean("selected"), it.optBoolean("available", true))
         }
-        val reviews = j.optJSONArray("reviews").objects().map {
-            Review(it.optString("title"), it.optString("body"), Parse.rating(it.optString("rating")), it.optString("author"), it.optString("date"))
-        }.filter { it.body.isNotBlank() || it.title.isNotBlank() }
+        val reviews = reviewList(j)
         val detailsArr = j.optJSONArray("details")
         val details = ArrayList<Pair<String, String>>()
         if (detailsArr != null) for (i in 0 until detailsArr.length()) {
@@ -159,6 +157,7 @@ object Extract {
             cartCount = Parse.int(j.optString("cartCount")),
             url = url,
             pctOff = j.optInt("pctOff", 0),
+            reviewSummary = j.optString("reviewSummary").replace(Regex("\\s+"), " ").trim(),
         )
         val fields = mapOf(
             "title" to if (p.title.isNotBlank()) 1.0 else 0.0,
@@ -175,6 +174,26 @@ object Extract {
             Health("product", System.currentTimeMillis(), if (p.title.isNotBlank()) 1 else 0, fields, p.title.isNotBlank(), url, j.optJSONArray("healed").strings()),
         )
         return p
+    }
+
+    fun reviewList(j: JSONObject): List<Review> = j.optJSONArray("reviews").objects().map {
+        Review(
+            it.optString("title").trim(), it.optString("body").trim(), Parse.rating(it.optString("rating")),
+            it.optString("author").trim(), it.optString("date").trim(), it.optBoolean("verified"),
+            it.optString("helpful").replace(Regex("\\s+"), " ").trim(),
+        )
+    }.filter { it.body.isNotBlank() || it.title.isNotBlank() }
+
+    fun reviews(j: JSONObject, url: String): ReviewsPage {
+        val list = reviewList(j)
+        val hist = j.optJSONArray("histogram").let { a -> if (a == null) emptyList() else (0 until a.length()).map { a.optInt(it) } }
+        HealthLog.record(
+            Health("reviews", System.currentTimeMillis(), list.size,
+                mapOf("body" to if (list.isEmpty()) 0.0 else list.count { it.body.isNotBlank() }.toDouble() / list.size,
+                    "rating" to if (list.isEmpty()) 0.0 else list.count { it.rating != null }.toDouble() / list.size),
+                list.isNotEmpty(), url),
+        )
+        return ReviewsPage(list, Parse.reviews(j.optString("total")), Parse.rating(j.optString("average")), hist, j.optBoolean("hasNext"))
     }
 
     fun lists(j: JSONObject, url: String): ListsPage {
