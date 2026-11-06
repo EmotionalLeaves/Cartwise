@@ -118,7 +118,7 @@ class TourTest {
         step("launch") { shot("01-for-you-first-launch", 3000) }
 
         step("quiz") {
-            clickText("Start the quiz")
+            clickText("Pick what you shop for")
             waitText("Pick 5 more", 10_000)
             listOf("Kitchen gear", "Coffee & tea", "Headphones & audio", "Camping & hiking", "Home office").forEach { clickText(it) }
             shot("02-quiz")
@@ -198,6 +198,16 @@ class TourTest {
             waitText("On-device taste model", 10_000)
             rule.waitUntil(120_000) { rule.onAllNodesWithText("Checking…").fetchSemanticsNodes().isEmpty() }
             shot("22-self-check", 1000)
+        }
+        step("demo") {
+            rule.runOnUiThread { rule.activity.findViewById<android.view.View>(android.R.id.content) }
+            Graph.pendingRoute.value = "demo"
+            waitText("Demo", 10_000)
+            shot("23-demo-grid", 6000)
+            clickText("Product")
+            shot("24-demo-product", 6000)
+            swipe(2)
+            shot("25-demo-product-lower", 1500)
         }
         step("save-html") {
             var ua = ""

@@ -57,6 +57,11 @@ fun AppNav() {
 
     val pending by Graph.pendingAsin.collectAsStateWithLifecycle()
     val cartCount by com.emotionalleaves.cartwise.engine.AmazonSession.cartCount.collectAsStateWithLifecycle()
+    val pendingRoute by Graph.pendingRoute.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingRoute) {
+        val r = pendingRoute
+        if (r != null) { nav.navigate(r); Graph.pendingRoute.value = null }
+    }
     LaunchedEffect(pending) {
         val a = pending
         if (a != null) {
@@ -131,6 +136,7 @@ fun AppNav() {
             composable("settings") { SettingsScreen(nav) }
             composable("debug") { DebugScreen(nav) }
             composable("check") { SelfCheckScreen(nav) }
+            if (com.emotionalleaves.cartwise.BuildConfig.DEBUG) composable("demo") { DemoScreen(nav) }
         }
     }
 }

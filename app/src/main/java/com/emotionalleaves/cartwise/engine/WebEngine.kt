@@ -181,8 +181,8 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         }
         val ms = SystemClock.elapsedRealtime() - started
         val summary = when (res) {
-            is Res.Ok -> if (ms < 2500 && kind in FAST) "ok (fast)" else "ok"
-            is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
+            is Res.Ok -> if (ms < 2500 && kind in FAST) "ok (fast)" else "ok" + (fastNote?.let { " (fast path: $it)" } ?: "")
+            is Res.Fail -> res.reason.name.lowercase() + ": " + res.message + (fastNote?.let { " (fast path: $it)" } ?: "")
         }
         val entry = LogEntry(System.currentTimeMillis(), "$name · $kind", url ?: (currentUrl ?: ""), ms, summary)
         log.value = (listOf(entry) + log.value).take(60)
@@ -223,6 +223,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
 
     @Volatile var fastPathOk = true
         private set
+    @Volatile private var fastNote: String? = null
 
     /** Fast path: fetch HTML over HTTP, parse it offline. Null means "fall back to the live page". */
     private suspend fun runFast(url: String, kind: String, arg: String, desktop: Boolean): Res? {
@@ -232,14 +233,16 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         } catch (e: Exception) {
             return Res.Fail(Reason.OFFLINE, "Couldn't reach Amazon (" + (e.message ?: "network error") + ")", url)
         }
-        if (FastFetch.looksSorry(r.html, r.status)) {
-            delay(1_200)
+        var sorry = 0
+        while (FastFetch.looksSorry(r.html, r.status) && sorry < 3) {
+            sorry++
+            delay(1_500L * sorry)
             r = try { FastFetch.get(url, ua) } catch (e: Exception) { return null }
-            if (FastFetch.looksSorry(r.html, r.status)) return null // let the live browser try; it usually gets through
         }
+        if (FastFetch.looksSorry(r.html, r.status)) { fastNote = "sorry page x${sorry + 1}"; return null }
         if (FastFetch.looksSignedOut(r.finalUrl)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", r.finalUrl)
         if (Sensitive.isSensitive(r.finalUrl)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", r.finalUrl)
-        if (r.status != 200 || FastFetch.looksBlocked(r.html)) return null
+        if (r.status != 200 || FastFetch.looksBlocked(r.html)) { fastNote = "status ${r.status}" + (if (FastFetch.looksBlocked(r.html)) " blocked" else ""); return null }
         val pw = parserView()
         val done = CompletableDeferred<Unit>()
         pw.webViewClient = object : WebViewClient() {
@@ -258,7 +261,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
             "tiles" -> json.optJSONArray("items")?.length() ?: 0
             else -> 1
         }
-        if (n == 0) return null
+        if (n == 0) { fastNote = "parsed but empty"; return null }
         lastUrls.value = lastUrls.value + (kind to r.finalUrl)
         return Res.Ok(json, r.finalUrl)
     }
@@ -266,6 +269,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     private suspend fun runInner(w: WebView, url: String?, kind: String, arg: String, timeoutMs: Long): Res {
         if (!online()) return Res.Fail(Reason.OFFLINE, "You're offline", url)
         if (url != null && kind in FAST && fastPathOk && !Sensitive.isSensitive(url)) {
+            fastNote = null
             val fast = runFast(url, kind, arg, wantsDesktop(kind))
             if (fast != null) return fast
         }

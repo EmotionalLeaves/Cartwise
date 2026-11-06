@@ -65,7 +65,7 @@ jobs:
             adb shell am instrument -w -e class com.emotionalleaves.cartwise.TourTest com.emotionalleaves.cartwise.test/androidx.test.runner.AndroidJUnitRunner > instrument.txt 2>&1 || true
             mkdir -p tour-out
             adb pull /sdcard/Android/data/com.emotionalleaves.cartwise/files/tour tour-out/ || true
-            adb logcat -d > tour-out/logcat.txt || true
+            adb logcat -d -s Cartwise:V AndroidRuntime:E chromium:W System.err:W > tour-out/logcat.txt || true
             cp instrument.txt tour-out/ || true
 
       - name: Publish results to tour-results branch

@@ -39,6 +39,9 @@ object Graph {
     /** Set when a price alert notification is tapped; the nav host opens that product. */
     val pendingAsin = MutableStateFlow<String?>(null)
 
+    /** A route to open next (used by the emulator tour). */
+    val pendingRoute = MutableStateFlow<String?>(null)
+
     fun init(a: Application) {
         app = a
     }
