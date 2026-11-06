@@ -52,7 +52,19 @@ object FastFetch {
         }
     }
 
-    suspend fun get(url: String, userAgent: String): Result = withContext(Dispatchers.IO) {
+    /** Foreground requests in flight. Background fetches wait while this is above zero. */
+    private val foreground = java.util.concurrent.atomic.AtomicInteger(0)
+
+    suspend fun get(url: String, userAgent: String, priority: Boolean = false): Result = withContext(Dispatchers.IO) {
+        if (priority) foreground.incrementAndGet()
+        else {
+            var waited = 0
+            while (foreground.get() > 0 && waited < 4_000) { kotlinx.coroutines.delay(100); waited += 100 }
+        }
+        try { getInner(url, userAgent) } finally { if (priority) foreground.decrementAndGet() }
+    }
+
+    private suspend fun getInner(url: String, userAgent: String): Result = withContext(Dispatchers.IO) {
         var cur = url
         var status = 0
         repeat(4) { hop ->

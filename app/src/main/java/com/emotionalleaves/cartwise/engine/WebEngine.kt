@@ -257,8 +257,9 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         val desktop = wantsDesktop(kind)
         val mobileUa = withContext(Dispatchers.Main) { view().settings.userAgentString } ?: return null
         val ua = if (desktop) desktopUa(mobileUa) else mobileUa
+        val priority = name == "you"
         var r = try {
-            FastFetch.get(url, ua)
+            FastFetch.get(url, ua, priority)
         } catch (e: Exception) {
             return Res.Fail(Reason.OFFLINE, "Couldn't reach Amazon (" + (e.message ?: "network error") + ")", url)
         }
@@ -266,7 +267,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         while (FastFetch.looksSorry(r.html, r.status) && sorry < 3) {
             sorry++
             delay(1_500L * sorry)
-            r = try { FastFetch.get(url, ua) } catch (e: Exception) { return null }
+            r = try { FastFetch.get(url, ua, priority) } catch (e: Exception) { return null }
         }
         if (FastFetch.looksSorry(r.html, r.status)) { fastNote = "sorry page x${sorry + 1}"; return null }
         if (FastFetch.looksSignedOut(r.finalUrl)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", r.finalUrl)
