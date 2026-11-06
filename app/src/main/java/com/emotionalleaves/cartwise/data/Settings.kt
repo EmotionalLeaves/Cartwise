@@ -27,6 +27,11 @@ class Settings(private val context: Context) {
         val lastCluster: Long = 0,
         val lastFeed: Long = 0,
         val ordersImported: Long = 0,
+        /** How many refreshes have run; rotates which pages and queries each one reads. */
+        val refreshCount: Int = 0,
+        /** Where "More for you" left off, so it doesn't restart from the top every launch. */
+        val moreStep: Int = 0,
+        val outletStep: Int = 0,
     )
 
     private object K {
@@ -41,6 +46,9 @@ class Settings(private val context: Context) {
         val lastCluster = longPreferencesKey("last_cluster")
         val lastFeed = longPreferencesKey("last_feed")
         val ordersImported = longPreferencesKey("orders_imported")
+        val refreshCount = androidx.datastore.preferences.core.intPreferencesKey("refresh_count")
+        val moreStep = androidx.datastore.preferences.core.intPreferencesKey("more_step")
+        val outletStep = androidx.datastore.preferences.core.intPreferencesKey("outlet_step")
     }
 
     private val sep = "\u0001"
@@ -59,6 +67,9 @@ class Settings(private val context: Context) {
             lastCluster = p[K.lastCluster] ?: 0L,
             lastFeed = p[K.lastFeed] ?: 0L,
             ordersImported = p[K.ordersImported] ?: 0L,
+            refreshCount = p[K.refreshCount] ?: 0,
+            moreStep = p[K.moreStep] ?: 0,
+            outletStep = p[K.outletStep] ?: 0,
         )
     }
 
@@ -77,6 +88,9 @@ class Settings(private val context: Context) {
     suspend fun setLastCluster(v: Long) = put(K.lastCluster, v)
     suspend fun setLastFeed(v: Long) = put(K.lastFeed, v)
     suspend fun setOrdersImported(v: Long) = put(K.ordersImported, v)
+    suspend fun setRefreshCount(v: Int) = put(K.refreshCount, v)
+    suspend fun setMoreStep(v: Int) = put(K.moreStep, v)
+    suspend fun setOutletStep(v: Int) = put(K.outletStep, v)
 
     suspend fun addRecent(q: String) {
         val t = q.trim(); if (t.isBlank()) return

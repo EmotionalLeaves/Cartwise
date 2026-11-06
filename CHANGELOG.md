@@ -115,5 +115,10 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Fetches no longer wait in line: downloads run in parallel and only the short parse step takes turns. Pre-loading the next results page and the top products now happens all at once.
 - Manual feed refresh gap cut to 0.25 s between pages.
 
+## No more reruns
+- Each refresh looks somewhere new: it rotates the page, sort (newest / best match / most reviewed) and angle (your interest, then its top categories and brands) and the best-seller category, instead of re-reading the same first pages.
+- Anything you've been shown twice without opening it is dropped from the discovery shelves, "More for you" and the Outlet's "For you" (restock and price-drop shelves still show it, since those are about things you own or watch).
+- "More for you" and the Outlet's "For you" remember where they left off across launches and pull-to-refresh, so they never replay from the top.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

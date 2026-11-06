@@ -174,6 +174,7 @@ class OutletVm : ViewModel() {
     private suspend fun loadForYou() {
         val interests = Graph.feed.interests()
         if (interests.isEmpty()) { noInterests = true; ended = true; return }
+        if (step == 0 && rows.isEmpty()) step = Graph.settings.current().outletStep
         var added = 0
         var tries = 0
         while (added == 0 && tries < 3 && !ended) {
@@ -181,6 +182,7 @@ class OutletVm : ViewModel() {
             val c = interests[step % interests.size]
             val round = step / interests.size
             step++
+            Graph.settings.setOutletStep(step)
             val resale = round % 2 == 1
             val q = if (query.isBlank()) c.e.query else query + " " + c.e.query
             val u = url(if (resale) "resale" else "outlet", q, round / 2 + 1)

@@ -54,14 +54,15 @@ class ForYouVm : ViewModel() {
     var noInterests by mutableStateOf(false)
         private set
 
-    private var step = 0
+    private var step = -1
     private var empties = 0
     private var lastLoad = 0L
     private var job: Job? = null
 
+    /** Pull-to-refresh keeps going from where you were; it never replays the same pages. */
     fun reset() {
         job?.cancel()
-        more.clear(); step = 0; empties = 0; exhausted = false; error = null; noInterests = false; loading = false
+        more.clear(); empties = 0; exhausted = false; error = null; noInterests = false; loading = false
         Graph.feed.forgetProfile()
     }
 
@@ -70,6 +71,7 @@ class ForYouVm : ViewModel() {
         loading = true
         error = null
         job = viewModelScope.launch {
+            if (step < 0) step = Graph.settings.current().moreStep
             var added = 0
             var tries = 0
             while (added == 0 && tries < 3 && !exhausted) {
@@ -78,6 +80,7 @@ class ForYouVm : ViewModel() {
                 if (wait > 0) delay(wait)
                 val exclude = shelf.map { it.asin }.toHashSet().apply { more.forEach { add(it.asin) } }
                 val res = Graph.feed.more(step++, exclude)
+                Graph.settings.setMoreStep(step)
                 lastLoad = System.currentTimeMillis()
                 if (res.noInterests) { noInterests = true; exhausted = true; break }
                 if (res.error != null) { error = res.error; break }

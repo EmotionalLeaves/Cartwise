@@ -171,11 +171,19 @@ class FeedBuilder(
         val clusters = profile.clusters.filter { !it.e.muted }
 
         publish()
-        // 4. New in your interests: searches Cartwise writes from your clusters.
-        for (c in clusters.take(6)) {
+        // 4. New in your interests. Each refresh looks somewhere new: a different page, sort and
+        //    angle (the interest's query, then its top categories and brands), so you don't see the same page again.
+        val round = settings.current().refreshCount
+        settings.setRefreshCount(round + 1)
+        for ((ci, c) in clusters.take(6).withIndex()) {
             if (blocked || !budget.take()) break
+            val angles = listOf(c.e.query) + c.e.topCategories.split("|").filter { it.isNotBlank() } + c.e.topBrands.split("|").filter { it.isNotBlank() }.map { "$it ${c.e.query}" }
+            val q = angles[(round + ci) % angles.size]
+            val pageNo = (round / angles.size) % 3 + 1
+            val sortName = listOf("searchNew", "search", "searchPopular")[round % 3]
             step("Looking for new things in " + c.name)
-            when (val r = shop.searchUrl(shop.url("searchNew", "q" to ShopRepo.enc(c.e.query)))) {
+            val u = shop.url(sortName, "q" to ShopRepo.enc(q), "page" to pageNo.toString()).let { if (it.contains("{page}")) it.replace("{page}", pageNo.toString()) else if (!it.contains("page=")) "$it&page=$pageNo" else it }
+            when (val r = shop.searchUrl(u)) {
                 is Load.Ok -> r.v.items.filter { !it.sponsored }.take(16).forEach {
                     cands += Cand(it, Shelf.NEW_IN, "New in " + c.name, 0.3)
                 }
@@ -201,7 +209,8 @@ class FeedBuilder(
 
         publish()
         // 6. Popular where you shop: best sellers in your top categories.
-        val roots = clusters.flatMap { it.roots }.distinct().take(3)
+        val allRoots = clusters.flatMap { it.roots }.distinct()
+        val roots = if (allRoots.size <= 3) allRoots else (0 until 3).map { allRoots[(round + it) % allRoots.size] }
         for (root in roots) {
             if (blocked || !budget.take()) break
             step("Checking best sellers in $root")
@@ -221,7 +230,7 @@ class FeedBuilder(
 
         publish()
         // 7. Wildcard: one category over from your interests.
-        val salt = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
+        val salt = Calendar.getInstance().get(Calendar.DAY_OF_YEAR) + round * 7
         for ((i, c) in clusters.take(3).withIndex()) {
             if (blocked || !budget.take()) break
             val q = Categories.adjacentQuery(c.roots.firstOrNull(), c.e.query, salt + i)
@@ -299,6 +308,7 @@ class FeedBuilder(
 
     private suspend fun select(p: TasteModel.Profile, cands: List<Cand>, now: Long): List<FeedCardEntity> {
         val seen = dao.seenAsins().toSet()
+        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
         val scored = ArrayList<Scored>()
         val doneAsins = HashSet<String>()
         // Restock and price drops first so they win duplicates.
@@ -306,7 +316,7 @@ class FeedBuilder(
         for (c in ordered) {
             val l = c.l
             if (l.asin.isBlank() || l.title.isBlank() || !doneAsins.add(l.asin)) continue
-            scoreOne(p, c, seen)?.let { scored += it }
+            scoreOne(p, c, seen, seenTwice)?.let { scored += it }
         }
 
         // Variety rules: no near-duplicates, max 3 cards per brand, shelves of up to 10, 1 in 8 wildcard.
@@ -368,12 +378,14 @@ class FeedBuilder(
     }
 
     /** Scores one candidate with the feed formula; null when it doesn't clear the bar. */
-    private suspend fun scoreOne(p: TasteModel.Profile, c: Cand, seen: Set<String>): Scored? {
+    private suspend fun scoreOne(p: TasteModel.Profile, c: Cand, seen: Set<String>, seenTwice: Set<String> = emptySet()): Scored? {
         val l = c.l
         if (l.asin in p.blockedItems) return null
         val brand = l.brand.ifBlank { l.title.substringBefore(' ') }
         if (brand.lowercase() in p.blockedBrands) return null
         if (l.asin in p.owned && c.shelf != Shelf.RESTOCK) return null
+        // Discovery shelves never repeat something you've already been shown twice.
+        if (c.shelf != Shelf.RESTOCK && c.shelf != Shelf.PRICE_DROP && l.asin in seenTwice) return null
 
         signals.remember(l.toItem(c.category))
         val item = dao.item(l.asin) ?: ItemEntity(ref = l.asin, title = l.title)
@@ -430,6 +442,7 @@ class FeedBuilder(
      */
     suspend fun more(step: Int, exclude: Set<String>): More {
         val p = freshProfile()
+        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
         val clusters = p.clusters.filter { !it.e.muted }
         if (clusters.isEmpty()) return More(emptyList(), false, noInterests = true)
         val c = clusters[step % clusters.size]
@@ -457,7 +470,7 @@ class FeedBuilder(
             .filter { !it.sponsored && it.asin.isNotBlank() && it.title.isNotBlank() && it.asin !in exclude }
             .distinctBy { it.asin }
             .toList()
-            .mapNotNull { scoreOne(p, Cand(it, shelf, reason, 0.2), seen) }
+            .mapNotNull { scoreOne(p, Cand(it, shelf, reason, 0.2), seen, seenTwice) }
             .sortedByDescending { it.score }
         val cards = scored.mapIndexed { i, s ->
             val l = s.c.l
@@ -480,11 +493,12 @@ class FeedBuilder(
     suspend fun pick(items: List<Listing>, reason: String): List<Picked> {
         val p = freshProfile()
         val seen = dao.seenAsins().toSet()
+        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
         return items.asSequence()
             .filter { !it.sponsored && it.asin.isNotBlank() && it.title.isNotBlank() }
             .distinctBy { it.asin }
             .toList()
-            .mapNotNull { l -> scoreOne(p, Cand(l, Shelf.NEW_IN, reason, 0.2), seen)?.let { Picked(l, it.score, it.fit, it.reason) } }
+            .mapNotNull { l -> scoreOne(p, Cand(l, Shelf.NEW_IN, reason, 0.2), seen, seenTwice)?.let { Picked(l, it.score, it.fit, it.reason) } }
             .sortedByDescending { it.score }
     }
 
