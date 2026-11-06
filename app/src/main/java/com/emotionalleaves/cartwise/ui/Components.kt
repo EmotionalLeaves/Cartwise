@@ -80,12 +80,17 @@ fun AccountButton(nav: NavController) {
 
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
 @Composable
-fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400, radius: androidx.compose.ui.unit.Dp = 14.dp) {
+fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400, radius: androidx.compose.ui.unit.Dp = 14.dp, asin: String? = null) {
     // Try the right-sized address first; if Amazon's image server rejects it, fall back to the original.
     var attempt by remember(url) { mutableIntStateOf(0) }
     // Cards saved by older builds can hold Amazon's placeholder pixels; treat those as no photo.
     val clean = remember(url) { com.emotionalleaves.cartwise.engine.Extract.cleanImage(url) }
-    val candidates = remember(clean) { if (clean.isBlank()) emptyList() else listOf(Fmt.image(clean, px), clean).distinct() }
+    val candidates = remember(clean, asin) {
+        val fromPage = if (clean.isBlank()) emptyList() else listOf(Fmt.image(clean, px), clean)
+        // Last resort: Amazon's product-ID photo address, which works even when the page gave us nothing.
+        val byId = if (asin != null && Regex("^[A-Z0-9]{10}$").matches(asin)) listOf("https://m.media-amazon.com/images/P/$asin.01._SCLZZZZZZZ_SX${px}_.jpg") else emptyList()
+        (fromPage + byId).distinct()
+    }
     val failed = attempt >= candidates.size
     Box(
         modifier.clip(RoundedCornerShape(radius)).background(Color.White),

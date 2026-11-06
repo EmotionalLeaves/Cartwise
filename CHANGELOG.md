@@ -128,5 +128,10 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - **Consistency:** Amazon Lists use the same product tiles (long-press to watch); Search suggests your own interests and categories.
 - The emulator tour was updated for the new design.
 
+## Photos and reasons
+- Tiles with no photo address (cards read through the backup browser, where Amazon swaps in placeholders) now fall back to Amazon's product-ID photo address before showing the no-photo icon.
+- "Because you kept: …" is now "Like your …" and only appears for a genuinely close match (high similarity and a shared product word); otherwise the card says which of your interests it's for.
+- The on-device model can't load on x86 emulators (MediaPipe ships the ARM library only); on phones it loads normally. Settings → Embedding model shows which model is running and why if not.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

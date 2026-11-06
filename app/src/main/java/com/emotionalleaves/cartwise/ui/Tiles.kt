@@ -49,7 +49,7 @@ fun ProductTile(d: TileData, modifier: Modifier = Modifier, onOpen: () -> Unit, 
             .combinedClickable(onClick = onOpen, onLongClick = onLong, onLongClickLabel = "Options"),
     ) {
         Box {
-            ProductImage(d.image, Modifier.fillMaxWidth().aspectRatio(1f), d.title, px = 500, radius = 0.dp)
+            ProductImage(d.image, Modifier.fillMaxWidth().aspectRatio(1f), d.title, px = 500, radius = 0.dp, asin = d.asin)
             if (d.discountPct > 0) {
                 Surface(
                     color = androidx.compose.ui.graphics.Color(0xFF1B1F22),

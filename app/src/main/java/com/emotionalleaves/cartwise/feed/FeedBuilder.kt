@@ -412,8 +412,19 @@ class FeedBuilder(
 
         var reason = c.reason
         if (c.shelf == Shelf.NEW_IN || c.shelf == Shelf.POPULAR) {
+            // Only name a past purchase when it's a genuinely close match: high similarity AND a shared
+            // product word (so "thongs" never claims to be "because of" a pair of shoes).
             val near = taste.nearestKept(p, v)
-            if (near != null && near.second > 0.6) reason = "Because you kept: " + Fmt.short(near.first.title, 36)
+            val sharesWord = near != null && run {
+                val a = Words.contentTokens(near.first.title).map { Words.stem(it) }.filter { it.length >= 4 && it.none(Char::isDigit) }.toSet()
+                val b = Words.contentTokens(l.title).map { Words.stem(it) }.filter { it.length >= 4 && it.none(Char::isDigit) }.toSet()
+                a.any { it in b && it != brand.lowercase() }
+            }
+            reason = if (near != null && near.second > 0.75 && sharesWord) {
+                "Like your " + Fmt.short(near.first.title, 22)
+            } else {
+                fit.cluster?.let { "For your interest: " + it.name } ?: reason
+            }
         }
         if (seasonal && c.shelf != Shelf.RESTOCK && c.shelf != Shelf.PRICE_DROP) reason += " · you shop this time of year"
         return Scored(c, score, f, reason, fit.cluster?.e?.id, Words.cloneTokens(l.title, brand))
