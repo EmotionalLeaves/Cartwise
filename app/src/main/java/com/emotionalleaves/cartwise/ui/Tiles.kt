@@ -40,7 +40,8 @@ data class TileData(
  * title, price and a single quiet line. Tap opens; long-press shows options.
  */
 @Composable
-fun ProductTile(d: TileData, modifier: Modifier = Modifier, onOpen: () -> Unit, onLong: (() -> Unit)? = null) {
+fun ProductTile(d: TileData, modifier: Modifier = Modifier, onOpen: () -> Unit, onLong: (() -> Unit)? = null, onShown: (suspend () -> Unit)? = null) {
+    if (onShown != null) androidx.compose.runtime.LaunchedEffect(d.asin) { onShown() }
     Column(
         modifier
             .clip(RoundedCornerShape(18.dp))

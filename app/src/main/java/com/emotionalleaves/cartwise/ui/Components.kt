@@ -83,13 +83,15 @@ fun AccountButton(nav: NavController) {
 fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400, radius: androidx.compose.ui.unit.Dp = 14.dp) {
     // Try the right-sized address first; if Amazon's image server rejects it, fall back to the original.
     var attempt by remember(url) { mutableIntStateOf(0) }
-    val candidates = remember(url) { listOf(Fmt.image(url, px), url).distinct() }
+    // Cards saved by older builds can hold Amazon's placeholder pixels; treat those as no photo.
+    val clean = remember(url) { com.emotionalleaves.cartwise.engine.Extract.cleanImage(url) }
+    val candidates = remember(clean) { if (clean.isBlank()) emptyList() else listOf(Fmt.image(clean, px), clean).distinct() }
     val failed = attempt >= candidates.size
     Box(
         modifier.clip(RoundedCornerShape(radius)).background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
-        if (url.isNotBlank() && !failed) {
+        if (candidates.isNotEmpty() && !failed) {
             AsyncImage(
                 model = candidates[attempt],
                 contentDescription = contentDescription,
@@ -301,7 +303,9 @@ fun NavController.openProduct(asin: String) = navigate("product/$asin")
 
 /** Opens a product and shows what we already know about it instantly while the full page loads. */
 fun NavController.openProduct(l: com.emotionalleaves.cartwise.engine.Listing) {
-    if (l.title.isNotBlank()) com.emotionalleaves.cartwise.Graph.previews[l.asin] = l
+    val pv = com.emotionalleaves.cartwise.Graph.previews
+    if (pv.size > 300) pv.clear()
+    if (l.title.isNotBlank()) pv[l.asin] = l
     navigate("product/" + l.asin)
 }
 

@@ -308,7 +308,7 @@ class FeedBuilder(
 
     private suspend fun select(p: TasteModel.Profile, cands: List<Cand>, now: Long): List<FeedCardEntity> {
         val seen = dao.seenAsins().toSet()
-        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
+        val seenTwice = alreadySeen()
         val scored = ArrayList<Scored>()
         val doneAsins = HashSet<String>()
         // Restock and price drops first so they win duplicates.
@@ -384,7 +384,7 @@ class FeedBuilder(
         val brand = l.brand.ifBlank { l.title.substringBefore(' ') }
         if (brand.lowercase() in p.blockedBrands) return null
         if (l.asin in p.owned && c.shelf != Shelf.RESTOCK) return null
-        // Discovery shelves never repeat something you've already been shown twice.
+        // Discovery never repeats something you've already been shown and didn't open (for two weeks).
         if (c.shelf != Shelf.RESTOCK && c.shelf != Shelf.PRICE_DROP && l.asin in seenTwice) return null
 
         signals.remember(l.toItem(c.category))
@@ -442,7 +442,7 @@ class FeedBuilder(
      */
     suspend fun more(step: Int, exclude: Set<String>): More {
         val p = freshProfile()
-        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
+        val seenTwice = alreadySeen()
         val clusters = p.clusters.filter { !it.e.muted }
         if (clusters.isEmpty()) return More(emptyList(), false, noInterests = true)
         val c = clusters[step % clusters.size]
@@ -493,7 +493,7 @@ class FeedBuilder(
     suspend fun pick(items: List<Listing>, reason: String): List<Picked> {
         val p = freshProfile()
         val seen = dao.seenAsins().toSet()
-        val seenTwice = dao.seenAsinsAtLeast(2).toSet()
+        val seenTwice = alreadySeen()
         return items.asSequence()
             .filter { !it.sponsored && it.asin.isNotBlank() && it.title.isNotBlank() }
             .distinctBy { it.asin }
@@ -504,19 +504,23 @@ class FeedBuilder(
 
     // ---- Feedback from the feed cards ----
 
+    /** Counts a sighting once per 20-minute session (the lastDay column now holds the last-seen time). */
     suspend fun impression(asin: String) {
-        val day = System.currentTimeMillis() / DAY
+        val now = System.currentTimeMillis()
         val cur = dao.impression(asin)
-        if (cur != null && cur.lastDay == day) return
+        if (cur != null && now - cur.lastDay < 20 * 60_000L) return
         val n = (cur?.count ?: 0) + 1
-        dao.upsertImpression(ImpressionEntity(asin, n, day, cur?.interacted ?: false, cur?.firstSeen ?: System.currentTimeMillis()))
+        dao.upsertImpression(ImpressionEntity(asin, n, now, cur?.interacted ?: false, cur?.firstSeen ?: now))
         if (n == 3 && cur?.interacted != true) signals.log(asin, SignalType.SKIP)
     }
+
+    /** Things you've already been shown in the last two weeks and didn't open: kept out of discovery. */
+    private suspend fun alreadySeen(): Set<String> = dao.seenSince(System.currentTimeMillis() - 14 * DAY).toSet()
 
     private suspend fun interacted(asin: String) {
         val cur = dao.impression(asin)
         dao.upsertImpression(
-            ImpressionEntity(asin, cur?.count ?: 1, cur?.lastDay ?: (System.currentTimeMillis() / DAY), true, cur?.firstSeen ?: System.currentTimeMillis()),
+            ImpressionEntity(asin, cur?.count ?: 1, cur?.lastDay ?: System.currentTimeMillis(), true, cur?.firstSeen ?: System.currentTimeMillis()),
         )
     }
 

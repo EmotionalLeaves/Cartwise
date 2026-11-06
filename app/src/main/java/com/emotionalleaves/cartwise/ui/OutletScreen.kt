@@ -220,7 +220,7 @@ class OutletVm : ViewModel() {
     /** Quietly reads the next page and a few top products in the background browser so they open instantly. */
     private fun prefetch(nextUrl: String?, asins: List<String>) {
         if (nextUrl != null) viewModelScope.launch { Graph.bgShop.searchUrl(nextUrl) }
-        asins.take(3).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
+        asins.take(2).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
     }
 
     fun watch(l: Listing) { viewModelScope.launch { Watch.add(l) } }
@@ -309,6 +309,7 @@ fun OutletScreen(nav: NavController) {
                         r.l.tile(line = r.reason ?: Fmt.delivery(r.l.deliveryDays, r.l.deliveryText), accent = r.reason != null),
                         onOpen = { nav.openProduct(r.l) },
                         onLong = { vm.watch(r.l); scope.launch { snack.showSnackbar("Added to your watchlist") } },
+                        onShown = if (vm.section == OutletSection.FOR_YOU) ({ Graph.feed.impression(r.l.asin) }) else null,
                     )
                 }
                 if (vm.loading) items(4) { TileSkeleton() }

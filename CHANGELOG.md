@@ -120,5 +120,13 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Anything you've been shown twice without opening it is dropped from the discovery shelves, "More for you" and the Outlet's "For you" (restock and price-drop shelves still show it, since those are about things you own or watch).
 - "More for you" and the Outlet's "For you" remember where they left off across launches and pull-to-refresh, so they never replay from the top.
 
+## Five-pass review fixes
+- **Repeats:** a sighting now counts per 20-minute session instead of once a day, the "More for you" grid and the Outlet's "For you" record what you've seen, and anything you were shown and didn't open stays out of discovery for two weeks.
+- **Account safety:** background pages (pre-loads, feed, price checks) go through one app-wide gate: at most one every 1.2 s, and they pause while you're waiting on something. Pre-loads per results page cut to the next page plus the top 2 products. The fast fetcher refuses to follow a redirect off Amazon and strips meta-refresh tags before parsing.
+- **Taste model:** if the on-device model fails to load, Settings → Embedding model now says why.
+- **Photos:** cards saved by older builds with Amazon's placeholder pixels show the clean no-photo icon instead of a blank tile, and the next refresh replaces them.
+- **Consistency:** Amazon Lists use the same product tiles (long-press to watch); Search suggests your own interests and categories.
+- The emulator tour was updated for the new design.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

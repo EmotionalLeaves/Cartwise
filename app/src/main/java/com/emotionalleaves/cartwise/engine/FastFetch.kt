@@ -2,6 +2,7 @@ package com.emotionalleaves.cartwise.engine
 
 import android.webkit.CookieManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
@@ -29,7 +30,7 @@ object FastFetch {
             .build()
     }
 
-    private val scriptRe = Regex("(?is)<script\\b[^>]*>.*?</script>|<link\\b[^>]*rel=[\"']?(?:preload|prefetch|stylesheet)[^>]*>|<iframe\\b[^>]*>.*?</iframe>|<noscript\\b[^>]*>.*?</noscript>")
+    private val scriptRe = Regex("(?is)<meta\\b[^>]*http-equiv[^>]*>|<script\\b[^>]*>.*?</script>|<link\\b[^>]*rel=[\"']?(?:preload|prefetch|stylesheet)[^>]*>|<iframe\\b[^>]*>.*?</iframe>|<noscript\\b[^>]*>.*?</noscript>")
     private val onAttrRe = Regex("(?i)\\son[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*')")
 
     /** Strips everything that could run, so the parser only reads. */
@@ -52,6 +53,9 @@ object FastFetch {
         }
     }
 
+    private val bgGate = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var lastBg = 0L
+
     /** Foreground requests in flight. Background fetches wait while this is above zero. */
     private val foreground = java.util.concurrent.atomic.AtomicInteger(0)
 
@@ -60,6 +64,12 @@ object FastFetch {
         else {
             var waited = 0
             while (foreground.get() > 0 && waited < 4_000) { kotlinx.coroutines.delay(100); waited += 100 }
+            // Keeps background traffic at a person's pace (plan rule 5), whatever triggered it.
+            bgGate.withLock {
+                val gap = 1_200L - (System.currentTimeMillis() - lastBg)
+                if (gap > 0) kotlinx.coroutines.delay(gap)
+                lastBg = System.currentTimeMillis()
+            }
         }
         try { getInner(url, userAgent) } finally { if (priority) foreground.decrementAndGet() }
     }
@@ -80,6 +90,9 @@ object FastFetch {
                 if (status in 300..399) {
                     val loc = resp.header("Location") ?: return@withContext Result("", cur, status)
                     cur = resp.request.url.resolve(loc)?.toString() ?: loc
+                    // Never follow a redirect off Amazon.
+                    val host = try { java.net.URI(cur).host ?: "" } catch (_: Exception) { "" }
+                    if (!Sensitive.isAmazonHost(host)) return@withContext Result("", cur, 0)
                     if (hop == 3) return@withContext Result("", cur, status)
                 } else {
                     return@withContext Result(resp.body?.string() ?: "", cur, status)

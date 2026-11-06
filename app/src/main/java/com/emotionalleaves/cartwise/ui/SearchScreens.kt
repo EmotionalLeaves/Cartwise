@@ -71,6 +71,7 @@ import java.util.Locale
 @Composable
 fun SearchScreen(nav: NavController) {
     val prefs by Graph.settings.prefs.collectAsStateWithLifecycle(initialValue = null)
+    val clusters by Graph.db.dao().clustersFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var text by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
@@ -151,7 +152,9 @@ fun SearchScreen(nav: NavController) {
                         Text("Try", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("usb c cable", "sound bar", "air fryer", "running shoes", "desk lamp", "coffee grinder").forEach { q ->
+                            val fromYou = clusters.filter { !it.muted }.flatMap { c -> listOf(c.query) + c.topCategories.split("|") }
+                                .map { it.trim().lowercase() }.filter { it.length in 3..30 }.distinct().take(8)
+                            fromYou.ifEmpty { listOf("usb c cable", "sound bar", "air fryer", "running shoes", "desk lamp", "coffee grinder") }.forEach { q ->
                                 SuggestionChip(onClick = { go(q) }, label = { Text(q) })
                             }
                         }
@@ -301,7 +304,7 @@ class ResultsVm(val query: String) : ViewModel() {
      */
     private fun prefetch(nextPage: Int, asins: List<String>) {
         if (nextPage <= 40) viewModelScope.launch { Graph.bgShop.search(query, nextPage) }
-        asins.take(4).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
+        asins.take(2).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
     }
 
     fun choose(p: Preset) {

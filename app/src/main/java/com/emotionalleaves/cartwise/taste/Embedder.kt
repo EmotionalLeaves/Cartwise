@@ -22,12 +22,17 @@ class Embedder(private val context: Context) {
     @Volatile var usingModel = false
         private set
 
+    /** Why the on-device model didn't load, shown in Settings so it can be fixed. */
+    @Volatile var loadError: String? = null
+        private set
+
     @Synchronized
     private fun init() {
         if (tried) return
         tried = true
         try {
             val has = context.assets.list("")?.contains(MODEL) == true
+            if (!has) loadError = null
             if (has) {
                 val base = BaseOptions.builder().setModelAssetPath(MODEL).build()
                 val opts = TextEmbedder.TextEmbedderOptions.builder()
@@ -40,6 +45,7 @@ class Embedder(private val context: Context) {
         } catch (t: Throwable) {
             mp = null
             usingModel = false
+            loadError = (t.javaClass.simpleName + ": " + (t.message ?: "")).take(200)
         }
     }
 
@@ -59,7 +65,12 @@ class Embedder(private val context: Context) {
 
     val name: String
         get() {
-            init(); return if (usingModel) "MediaPipe Universal Sentence Encoder" else "Built-in word hashing (model not bundled)"
+            init()
+            return when {
+                usingModel -> "MediaPipe Universal Sentence Encoder"
+                loadError != null -> "Built-in word hashing (model failed: $loadError)"
+                else -> "Built-in word hashing (model not bundled)"
+            }
         }
 
     private fun hash(text: String): FloatArray {

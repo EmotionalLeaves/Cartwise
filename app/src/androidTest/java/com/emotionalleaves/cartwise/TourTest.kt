@@ -47,9 +47,13 @@ class TourTest {
         File(dir, "notes.txt").writeText(notes.toString())
     }
 
+    private fun idle() {
+        try { rule.waitForIdle() } catch (_: Throwable) { }
+    }
+
     private fun shot(name: String, settleMs: Long = 1500) {
         try {
-            rule.waitForIdle()
+            idle()
             Thread.sleep(settleMs)
             val bmp = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot() ?: return
             FileOutputStream(File(dir, "$name.png")).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -75,21 +79,24 @@ class TourTest {
     }
 
     private fun tab(route: String) {
+        // Back out of any pushed screen (product, account) so the tab bar is showing.
+        repeat(3) { if (rule.onAllNodes(androidx.compose.ui.test.hasTestTag("tab-$route")).fetchSemanticsNodes().isEmpty()) { rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }; Thread.sleep(600) } }
         rule.onNodeWithTag("tab-$route").performClick()
-        rule.waitForIdle()
+        idle()
         Thread.sleep(800)
     }
 
     private fun clickText(t: String, substring: Boolean = false) {
+        rule.waitUntil(15_000) { rule.onAllNodes(hasText(t, substring = substring) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         rule.onAllNodes(hasText(t, substring = substring) and hasClickAction()).onFirst().performClick()
-        rule.waitForIdle()
+        idle()
     }
 
     private fun scroller(): SemanticsNodeInteraction = rule.onAllNodes(hasScrollAction()).onFirst()
 
     private fun swipe(times: Int = 1) {
         repeat(times) { scroller().performTouchInput { swipeUp(durationMillis = 300) } }
-        rule.waitForIdle()
+        idle()
     }
 
     private fun dump(name: String, text: String) = File(dir, name).writeText(text)
@@ -109,7 +116,8 @@ class TourTest {
         }
         dump("last-search-items.json", items.toString(2))
         dump("debug-lines.txt", Graph.debugLines.value.joinToString("\n"))
-        dump("session.txt", "cartCount=${AmazonSession.cartCount.value}\nrules=${Graph.selectors.info.value}\nembedder=${Graph.embedder.name}")
+        dump("session.txt", "cartCount=${AmazonSession.cartCount.value}\nrules=${Graph.selectors.info.value}\nembedder=${Graph.embedder.name}\nassets=${ctx.assets.list("")?.joinToString()}")
+        dump("photo-failures.txt", com.emotionalleaves.cartwise.engine.PhotoLog.failures.value.joinToString("\n") { it.why + " :: " + it.url })
     }
 
     @Test
@@ -142,6 +150,7 @@ class TourTest {
             shot("07-results-deep", 5000)
         }
         step("results-sort") {
+            clickText("Best overall")
             clickText("Biggest discount")
             shot("08-results-discount", 2000)
             clickText("On sale")
@@ -160,6 +169,7 @@ class TourTest {
             shot("12-product-reviews", 1500)
             clickText("Details")
             shot("13-product-details", 1500)
+            rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         }
 
         step("outlet") {

@@ -250,10 +250,11 @@ fun ForYouScreen(nav: NavController) {
                                 card.tile(),
                                 modifier = Modifier.weight(1f),
                                 onOpen = {
-                                    scope.launch { Graph.feed.opened(card.asin); Graph.feed.impression(card.asin) }
+                                    scope.launch { Graph.feed.opened(card.asin) }
                                     nav.openProduct(card.toListing())
                                 },
                                 onLong = { menuFor = card },
+                                onShown = { Graph.feed.impression(card.asin) },
                             )
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))

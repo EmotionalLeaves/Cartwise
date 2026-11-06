@@ -211,26 +211,23 @@ private fun AmazonListsTab(nav: NavController) {
             if (s.v.items.isEmpty()) {
                 EmptyState("This list is empty", "Or Cartwise couldn't read it.", "Open Amazon's page") { nav.openWeb(listUrl ?: Graph.shop.url("lists")) }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(s.v.items, key = { it.asin }) { l -> ListRow(l, onOpen = { nav.openProduct(l) }, onWatch = { scope.launch { Watch.add(l) } }) }
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(s.v.items.size, key = { s.v.items[it].asin }) { i ->
+                        val l = s.v.items[i]
+                        ProductTile(
+                            l.tile(line = "Long-press to watch the price", accent = false),
+                            onOpen = { nav.openProduct(l) },
+                            onLong = { scope.launch { Watch.add(l) } },
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ListRow(l: Listing, onOpen: () -> Unit, onWatch: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ProductImage(l.image, Modifier.size(72.dp), l.title)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(l.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (l.price != null) Fmt.money(l.price) else l.priceText.ifBlank { "No price shown" }, style = MaterialTheme.typography.titleSmall)
-        }
-        TextButton(onClick = onWatch) { Text("Watch") }
     }
 }

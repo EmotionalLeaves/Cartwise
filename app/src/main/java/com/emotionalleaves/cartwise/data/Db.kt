@@ -191,7 +191,7 @@ abstract class CwDao {
     @Query("SELECT * FROM impressions WHERE asin = :asin") abstract suspend fun impression(asin: String): ImpressionEntity?
     @Upsert abstract suspend fun upsertImpression(i: ImpressionEntity)
     @Query("SELECT asin FROM impressions") abstract suspend fun seenAsins(): List<String>
-    @Query("SELECT asin FROM impressions WHERE count >= :n AND interacted = 0") abstract suspend fun seenAsinsAtLeast(n: Int): List<String>
+    @Query("SELECT asin FROM impressions WHERE interacted = 0 AND lastDay >= :since") abstract suspend fun seenSince(since: Long): List<String>
     @Query("DELETE FROM impressions") abstract suspend fun clearImpressions()
 }
 
