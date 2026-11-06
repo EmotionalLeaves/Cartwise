@@ -110,5 +110,10 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 ## Faster refresh
 - A manual refresh (button or pull) now reads 10 pages with ~0.6 s between them instead of 20 pages at 3–8 s, and each shelf appears as soon as its source is read rather than all at the end. Expect the first shelf in a few seconds and the whole refresh in roughly 20–30 s. The automatic nightly refresh keeps the slow, polite pace.
 
+## Even faster
+- Pages are fetched over one pooled HTTP/2 connection to Amazon (opened at launch), so there's no new TLS handshake per page.
+- Fetches no longer wait in line: downloads run in parallel and only the short parse step takes turns. Pre-loading the next results page and the top products now happens all at once.
+- Manual feed refresh gap cut to 0.25 s between pages.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

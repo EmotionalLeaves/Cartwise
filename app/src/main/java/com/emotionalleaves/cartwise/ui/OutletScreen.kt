@@ -217,10 +217,8 @@ class OutletVm : ViewModel() {
 
     /** Quietly reads the next page and a few top products in the background browser so they open instantly. */
     private fun prefetch(nextUrl: String?, asins: List<String>) {
-        viewModelScope.launch {
-            if (nextUrl != null) Graph.bgShop.searchUrl(nextUrl)
-            for (a in asins) { delay(1_200); Graph.bgShop.product(a) }
-        }
+        if (nextUrl != null) viewModelScope.launch { Graph.bgShop.searchUrl(nextUrl) }
+        asins.take(3).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
     }
 
     fun watch(l: Listing) { viewModelScope.launch { Watch.add(l) } }

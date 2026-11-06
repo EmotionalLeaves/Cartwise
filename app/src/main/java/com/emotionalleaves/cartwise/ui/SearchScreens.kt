@@ -244,7 +244,7 @@ class ResultsVm(val query: String) : ViewModel() {
                 pages.add(r.v.items)
                 rerank()
                 state = St.Ready
-                prefetch(page + 1, ranked.take(3).map { it.item.asin })
+                prefetch(page + 1, ranked.take(4).map { it.item.asin })
             }
             is Load.Fail -> state = when (r.reason) {
                 Reason.CAPTCHA, Reason.EMPTY, Reason.ERROR, Reason.SIGNED_OUT -> St.Fallback(r.url ?: pageUrl)
@@ -300,13 +300,8 @@ class ResultsVm(val query: String) : ViewModel() {
      * browser, so scrolling and tapping usually hit the cache. Stops if you leave the screen.
      */
     private fun prefetch(nextPage: Int, asins: List<String>) {
-        viewModelScope.launch {
-            if (nextPage <= 40) Graph.bgShop.search(query, nextPage)
-            for (a in asins) {
-                delay(1_200)
-                Graph.bgShop.product(a)
-            }
-        }
+        if (nextPage <= 40) viewModelScope.launch { Graph.bgShop.search(query, nextPage) }
+        asins.take(4).forEach { a -> viewModelScope.launch { Graph.bgShop.product(a) } }
     }
 
     fun choose(p: Preset) {

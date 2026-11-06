@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlinx.coroutines.sync.Mutex
@@ -152,8 +153,32 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
      * Load [url] (or stay on the current page when null) and run the page reader of [kind].
      * Calls are serialized: one page at a time.
      */
-    suspend fun run(url: String?, kind: String, arg: String = "", timeoutMs: Long = 30_000): Res =
-        mutex.withLock { withContext(Dispatchers.Main) { runLogged(url, kind, arg, timeoutMs) } }
+    suspend fun run(url: String?, kind: String, arg: String = "", timeoutMs: Long = 30_000): Res {
+        // Fast path: the network part runs outside the lock, so many pages download at once;
+        // only the short parse step takes turns.
+        if (url != null && kind in FAST && fastPathOk && !Sensitive.isSensitive(url) && online()) {
+            val started = SystemClock.elapsedRealtime()
+            fastNote = null
+            val fetched = fetchFast(url, kind)
+            if (fetched is Res.Fail) { logEntry(kind, url, started, fetched); return fetched }
+            if (fetched is Fetched) {
+                val parsed = parseMutex.withLock { withContext(Dispatchers.Main) { parseFast(fetched, kind, arg) } }
+                if (parsed != null) { logEntry(kind, url, started, parsed); return parsed }
+            }
+        }
+        return mutex.withLock { withContext(Dispatchers.Main) { runLogged(url, kind, arg, timeoutMs) } }
+    }
+
+    private val parseMutex = Mutex()
+
+    private fun logEntry(kind: String, url: String?, started: Long, res: Res) {
+        val ms = SystemClock.elapsedRealtime() - started
+        val summary = when (res) {
+            is Res.Ok -> "ok (fast)"
+            is Res.Fail -> res.reason.name.lowercase() + ": " + res.message
+        }
+        log.value = (listOf(LogEntry(System.currentTimeMillis(), "$name · $kind", url ?: "", ms, summary)) + log.value).take(60)
+    }
 
     /** Runs several page steps back to back without another caller navigating the engine in between. */
     interface Session {
@@ -225,9 +250,13 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         private set
     @Volatile private var fastNote: String? = null
 
-    /** Fast path: fetch HTML over HTTP, parse it offline. Null means "fall back to the live page". */
-    private suspend fun runFast(url: String, kind: String, arg: String, desktop: Boolean): Res? {
-        val ua = (if (desktop) desktopUa(view().settings.userAgentString) else view().settings.userAgentString) ?: return null
+    private class Fetched(val r: FastFetch.Result)
+
+    /** Network half of the fast path. Returns Fetched, a Res.Fail, or null to fall back to the live page. */
+    private suspend fun fetchFast(url: String, kind: String): Any? {
+        val desktop = wantsDesktop(kind)
+        val mobileUa = withContext(Dispatchers.Main) { view().settings.userAgentString } ?: return null
+        val ua = if (desktop) desktopUa(mobileUa) else mobileUa
         var r = try {
             FastFetch.get(url, ua)
         } catch (e: Exception) {
@@ -243,6 +272,13 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         if (FastFetch.looksSignedOut(r.finalUrl)) return Res.Fail(Reason.SIGNED_OUT, "Amazon wants you to sign in", r.finalUrl)
         if (Sensitive.isSensitive(r.finalUrl)) return Res.Fail(Reason.SENSITIVE, "That page is handled on Amazon's own screen", r.finalUrl)
         if (r.status != 200 || FastFetch.looksBlocked(r.html)) { fastNote = "status ${r.status}" + (if (FastFetch.looksBlocked(r.html)) " blocked" else ""); return null }
+        return Fetched(r)
+    }
+
+    /** Parse half of the fast path, on the main thread with the offline parser WebView. */
+    @MainThread
+    private suspend fun parseFast(f: Fetched, kind: String, arg: String): Res? {
+        val r = f.r
         val pw = parserView()
         val done = CompletableDeferred<Unit>()
         pw.webViewClient = object : WebViewClient() {
@@ -254,7 +290,6 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
         val json = JSONObject(out)
         if (json.has("error")) return null
         json.put("__url", r.finalUrl)
-        // Empty read on a page that should have content: let the live page try.
         val n = when (kind) {
             "search" -> json.optJSONArray("items")?.length() ?: 0
             "product" -> if (json.optString("title").isBlank()) 0 else 1
@@ -268,11 +303,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
 
     private suspend fun runInner(w: WebView, url: String?, kind: String, arg: String, timeoutMs: Long): Res {
         if (!online()) return Res.Fail(Reason.OFFLINE, "You're offline", url)
-        if (url != null && kind in FAST && fastPathOk && !Sensitive.isSensitive(url)) {
-            fastNote = null
-            val fast = runFast(url, kind, arg, wantsDesktop(kind))
-            if (fast != null) return fast
-        }
+
         val mobileUa = w.settings.userAgentString
         val desktop = url != null && wantsDesktop(kind)
         try {
@@ -357,6 +388,7 @@ class WebEngine(private val app: Context, private val selectors: SelectorStore, 
     /** Opens a connection to Amazon early so the first real page loads faster. */
     @MainThread
     fun warmUp() {
+        com.emotionalleaves.cartwise.Graph.scope.launch { FastFetch.warmUp() }
         if (!mutex.tryLock()) return
         try {
             view().loadUrl("https://www.amazon.com/favicon.ico")

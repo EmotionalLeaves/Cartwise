@@ -7,7 +7,7 @@ import kotlin.random.Random
  * Hard rule 5: background page loads happen at human pace.
  * At most [max] pages, and 3–8 seconds apart when [paced].
  */
-class PageBudget(val max: Int, private val paced: Boolean, private val quickGapMs: Long = 600) {
+class PageBudget(val max: Int, private val paced: Boolean, private val quickGapMs: Long = 250) {
     var used = 0
         private set
 

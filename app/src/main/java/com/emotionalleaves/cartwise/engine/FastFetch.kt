@@ -3,19 +3,31 @@ package com.emotionalleaves.cartwise.engine
 import android.webkit.CookieManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.zip.GZIPInputStream
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 /**
  * The fast path: downloads a page's HTML directly with your Amazon cookies, like the
  * browser's first request, but without running any of Amazon's scripts or loading ads,
- * fonts or images. The raw HTML also carries the real photo addresses, which Amazon's
- * scripts replace with grey placeholders until you scroll.
+ * fonts or images. One pooled HTTP/2 connection serves many pages, so after the first
+ * request there is no new TLS handshake per page.
  */
 object FastFetch {
     class Result(val html: String, val finalUrl: String, val status: Int)
+
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+            .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(12, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .retryOnConnectionFailure(true)
+            .build()
+    }
 
     private val scriptRe = Regex("(?is)<script\\b[^>]*>.*?</script>|<link\\b[^>]*rel=[\"']?(?:preload|prefetch|stylesheet)[^>]*>|<iframe\\b[^>]*>.*?</iframe>|<noscript\\b[^>]*>.*?</noscript>")
     private val onAttrRe = Regex("(?i)\\son[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*')")
@@ -32,39 +44,36 @@ object FastFetch {
     fun looksSorry(html: String, status: Int): Boolean =
         status == 503 || Regex("(?i)<title>\\s*Sorry!\\s*Something went wrong|Meet the dogs of Amazon|dogsofamazon").containsMatchIn(html.take(40_000))
 
-    suspend fun get(url: String, userAgent: String, timeoutMs: Int = 12_000): Result = withContext(Dispatchers.IO) {
+    /** Opens the pooled connection early so the first real page doesn't pay for the handshake. */
+    suspend fun warmUp() = withContext(Dispatchers.IO) {
+        try {
+            client.newCall(Request.Builder().url("https://www.amazon.com/favicon.ico").head().build()).execute().close()
+        } catch (_: Exception) {
+        }
+    }
+
+    suspend fun get(url: String, userAgent: String): Result = withContext(Dispatchers.IO) {
         var cur = url
         var status = 0
-        var html = ""
         repeat(4) { hop ->
-            val conn = (URL(cur).openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = false
-                connectTimeout = timeoutMs
-                readTimeout = timeoutMs
-                setRequestProperty("User-Agent", userAgent)
-                setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-                setRequestProperty("Accept-Encoding", "gzip")
-                setRequestProperty("Upgrade-Insecure-Requests", "1")
-                CookieManager.getInstance().getCookie(cur)?.let { setRequestProperty("Cookie", it) }
+            val b = Request.Builder().url(cur)
+                .header("User-Agent", userAgent)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Upgrade-Insecure-Requests", "1")
+            CookieManager.getInstance().getCookie(cur)?.let { b.header("Cookie", it) }
+            client.newCall(b.build()).execute().use { resp ->
+                status = resp.code
+                resp.headers("Set-Cookie").forEach { CookieManager.getInstance().setCookie(cur, it) }
+                if (status in 300..399) {
+                    val loc = resp.header("Location") ?: return@withContext Result("", cur, status)
+                    cur = resp.request.url.resolve(loc)?.toString() ?: loc
+                    if (hop == 3) return@withContext Result("", cur, status)
+                } else {
+                    return@withContext Result(resp.body?.string() ?: "", cur, status)
+                }
             }
-            status = conn.responseCode
-            conn.headerFields["Set-Cookie"]?.forEach { CookieManager.getInstance().setCookie(cur, it) }
-            if (status in 300..399) {
-                val loc = conn.getHeaderField("Location") ?: return@withContext Result("", cur, status)
-                conn.disconnect()
-                cur = URL(URL(cur), loc).toString()
-                if (hop == 3) return@withContext Result("", cur, status)
-                return@repeat
-            }
-            val stream = (if (status >= 400) conn.errorStream else conn.inputStream) ?: return@withContext Result("", cur, status)
-            val raw = (if (conn.contentEncoding?.contains("gzip") == true) GZIPInputStream(stream) else stream)
-            val buf = ByteArrayOutputStream()
-            raw.use { it.copyTo(buf) }
-            html = buf.toString("UTF-8")
-            conn.disconnect()
-            return@withContext Result(html, cur, status)
         }
-        Result(html, cur, status)
+        Result("", cur, status)
     }
 }
