@@ -81,17 +81,23 @@ fun AccountButton(nav: NavController) {
 /** Product photos are shot on white, so they always sit on a white tile, also in dark mode. */
 @Composable
 fun ProductImage(url: String, modifier: Modifier = Modifier, contentDescription: String? = null, px: Int = 400, radius: androidx.compose.ui.unit.Dp = 14.dp) {
-    var failed by remember(url) { mutableStateOf(false) }
+    // Try the right-sized address first; if Amazon's image server rejects it, fall back to the original.
+    var attempt by remember(url) { mutableIntStateOf(0) }
+    val candidates = remember(url) { listOf(Fmt.image(url, px), url).distinct() }
+    val failed = attempt >= candidates.size
     Box(
         modifier.clip(RoundedCornerShape(radius)).background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
         if (url.isNotBlank() && !failed) {
             AsyncImage(
-                model = Fmt.image(url, px),
+                model = candidates[attempt],
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Fit,
-                onError = { failed = true },
+                onError = { e ->
+                    com.emotionalleaves.cartwise.engine.PhotoLog.failed(candidates[attempt], e.result.throwable.message ?: "error")
+                    attempt++
+                },
                 modifier = Modifier.fillMaxSize().padding(6.dp),
             )
         } else {

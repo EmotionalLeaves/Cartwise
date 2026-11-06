@@ -395,7 +395,7 @@ fun DebugScreen(nav: NavController) {
     Screen("Debug", nav) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             ScrollableTabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background, edgePadding = 8.dp) {
-                listOf("Signals", "Orders", "Page reader", "Engine").forEachIndexed { i, t ->
+                listOf("Signals", "Orders", "Page reader", "Engine", "Photos").forEachIndexed { i, t ->
                     Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) })
                 }
             }
@@ -403,7 +403,8 @@ fun DebugScreen(nav: NavController) {
                 0 -> SignalsTab()
                 1 -> OrdersTab()
                 2 -> HealthTab()
-                else -> EngineTab()
+                3 -> EngineTab()
+                else -> PhotosTab()
             }
         }
     }
@@ -535,6 +536,40 @@ private fun EngineTab() {
                 Text(e.url, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(e.result, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp))
             }
+        }
+    }
+}
+
+@Composable
+private fun PhotosTab() {
+    val ctx = LocalContext.current
+    val fails by com.emotionalleaves.cartwise.engine.PhotoLog.failures.collectAsStateWithLifecycle()
+    val items by com.emotionalleaves.cartwise.engine.HealthLog.lastListings.collectAsStateWithLifecycle()
+    val blank = items.filter { it.image.isBlank() }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Column(Modifier.padding(16.dp)) {
+                Text("${fails.size} photos failed to load · ${blank.size} of the last ${items.size} search results had no photo address", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = {
+                    val text = buildString {
+                        appendLine("Cartwise photo report (build ${BuildConfig.VERSION_NAME})")
+                        appendLine("Failed to load:")
+                        fails.forEach { appendLine("- ${it.why} :: ${it.url}") }
+                        appendLine("Search results with no photo address:")
+                        blank.forEach { appendLine("- ${it.asin} ${it.title.take(60)}") }
+                        appendLine("All last-search photo addresses:")
+                        items.forEach { appendLine("- ${it.asin} ${it.image}") }
+                    }
+                    shareText(ctx, text, "Cartwise photo report")
+                }) { Text("Share photo report") }
+            }
+        }
+        items(fails) { f ->
+            ListItem(headlineContent = { Text(f.url, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall) }, supportingContent = { Text(f.why) })
+        }
+        items(blank, key = { it.asin }) { l ->
+            ListItem(headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall) }, supportingContent = { Text("No photo address read for " + l.asin) })
         }
     }
 }
