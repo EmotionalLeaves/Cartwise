@@ -51,12 +51,12 @@ fun ProductTile(d: TileData, modifier: Modifier = Modifier, onOpen: () -> Unit, 
             ProductImage(d.image, Modifier.fillMaxWidth().aspectRatio(1f), d.title, px = 500, radius = 0.dp)
             if (d.discountPct > 0) {
                 Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = androidx.compose.ui.graphics.Color(0xFF1B1F22),
+                    contentColor = androidx.compose.ui.graphics.Color(0xFFF2C77F),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 ) {
-                    Text("−${d.discountPct}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                    Text("−${d.discountPct}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                 }
             }
             d.tag?.let {

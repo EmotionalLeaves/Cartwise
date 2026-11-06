@@ -245,7 +245,7 @@ internal fun ProductBody(
                     }
                     if (p.discountPct > 0) {
                         Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            color = Color(0xFF1B1F22), contentColor = Color(0xFFF2C77F),
                             shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
                         ) { Text("Save ${p.discountPct}%", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }
                     }

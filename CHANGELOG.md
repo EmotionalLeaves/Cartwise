@@ -100,5 +100,12 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Best-seller pages are read in desktop layout (the phone layout only lists product IDs). Rules file is version 4.
 - Removed the list fade-in animation: it hid rows in the test harness and added nothing.
 
+## Design pass
+- One product tile everywhere (Search, Outlet, For You): photo first, discount tag on the photo, two-line title, bold price with the old price struck, a quiet "4.4 ★ 824" line and one delivery/reason line. Two-column grid.
+- Sorting is one "Best overall ▾" control plus an "On sale" toggle. Long-press a tile for watch, hide, hide brand, near-identical listings and "Why this rank".
+- Product page: swipeable photo carousel, brand/title/price block, a facts card, Options/Reviews/Details tabs, and a sticky Add to cart bar (the bottom tabs hide on this screen).
+- Type scale and spacing set deliberately; deeper dark palette; amber used only for discounts.
+- Debug builds have a `demo` route with sample data so the design can be reviewed on the emulator even when Amazon rate-limits it.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

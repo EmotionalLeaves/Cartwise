@@ -185,7 +185,7 @@ fun Pill(text: String, container: Color = MaterialTheme.colorScheme.surfaceVaria
 
 @Composable
 fun DiscountPill(pct: Int) {
-    Pill("−$pct%", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+    Pill("−$pct%", Color(0xFF1B1F22), Color(0xFFF2C77F))
 }
 
 @Composable

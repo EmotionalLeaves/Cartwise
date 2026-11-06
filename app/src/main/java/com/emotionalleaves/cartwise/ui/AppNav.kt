@@ -70,7 +70,7 @@ fun AppNav() {
         }
     }
 
-    val fullScreen = route.startsWith("web") || route == "login" || route == "quiz"
+    val fullScreen = route.startsWith("web") || route == "login" || route == "quiz" || route.startsWith("product/")
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
