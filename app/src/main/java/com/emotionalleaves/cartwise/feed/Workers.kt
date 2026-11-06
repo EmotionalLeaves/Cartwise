@@ -22,7 +22,7 @@ class FeedWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val prefs = Graph.settings.current()
         if (!manual && !prefs.bgRefresh) return Result.success()
         Graph.taste.rebuildIfStale()
-        Graph.feed.refresh(if (manual) inputData.getInt("pages", 20) else 40)
+        Graph.feed.refresh(if (manual) inputData.getInt("pages", 10) else 40, quick = manual)
         return Result.success()
     }
 }

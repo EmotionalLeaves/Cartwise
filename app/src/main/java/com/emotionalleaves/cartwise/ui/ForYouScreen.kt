@@ -157,7 +157,7 @@ fun ForYouScreen(nav: NavController) {
                 if (progress.running) {
                     item("progress") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(progress.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(progress.message + " · ${progress.used}/${progress.max} pages", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { if (progress.max > 0) progress.used.toFloat() / progress.max else 0f },

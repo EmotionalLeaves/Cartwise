@@ -107,5 +107,8 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - Type scale and spacing set deliberately; deeper dark palette; amber used only for discounts.
 - Debug builds have a `demo` route with sample data so the design can be reviewed on the emulator even when Amazon rate-limits it.
 
+## Faster refresh
+- A manual refresh (button or pull) now reads 10 pages with ~0.6 s between them instead of 20 pages at 3–8 s, and each shelf appears as soon as its source is read rather than all at the end. Expect the first shelf in a few seconds and the whole refresh in roughly 20–30 s. The automatic nightly refresh keeps the slow, polite pace.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

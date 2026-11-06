@@ -87,11 +87,11 @@ class FeedBuilder(
         private const val DAY = 86_400_000L
     }
 
-    suspend fun refresh(maxPages: Int): Boolean {
+    suspend fun refresh(maxPages: Int, quick: Boolean = false): Boolean {
         if (!busy.compareAndSet(false, true)) return false
         progress.value = Progress(running = true, max = maxPages, message = "Getting started", note = null)
         return try {
-            val found = build(maxPages)
+            val found = build(maxPages, quick)
             val note = when {
                 found < 0 -> "Nothing to refresh yet. Take the quiz or import your orders so Cartwise knows what you like."
                 found == 0 -> "Checked ${progress.value.used} pages; nothing new cleared the bar. Your current picks stay."
@@ -111,14 +111,23 @@ class FeedBuilder(
     }
 
     /** Returns how many cards were chosen, or -1 when there's nothing to go on yet. */
-    private suspend fun build(max: Int): Int {
+    private suspend fun build(max: Int, quick: Boolean = false): Int {
         taste.rebuildIfStale()
         val profile = taste.profile()
-        val budget = PageBudget(max, paced = true)
+        // A tap wants an answer now: short gaps (the pages are cheap fetches). The nightly run stays slow and polite.
+        val budget = PageBudget(max, paced = !quick)
         val cands = ArrayList<Cand>()
         val now = System.currentTimeMillis()
         fun step(msg: String) {
             progress.value = progress.value.copy(used = budget.used, max = max, message = msg)
+        }
+        var published = 0
+        // Show what's ready so far, so shelves appear while the rest loads.
+        suspend fun publish() {
+            if (cands.size == published) return
+            published = cands.size
+            val cards = select(profile, cands, now)
+            if (cards.isNotEmpty()) dao.replaceFeed(cards)
         }
         var blocked = false
         fun stopOn(r: Load.Fail) {
@@ -129,7 +138,7 @@ class FeedBuilder(
         cands += restock(now)
 
         // 2. Watchlist price checks.
-        val watches = dao.watchByStaleness().take(minOf(8, max / 4 + 1))
+        val watches = dao.watchByStaleness().take(if (quick) 2 else minOf(8, max / 4 + 1))
         for (w in watches) {
             if (blocked || !budget.take()) break
             step("Checking the price of " + Fmt.short(w.title, 30))
@@ -139,6 +148,7 @@ class FeedBuilder(
             }
         }
 
+        publish()
         // 3. Your Amazon Lists: price drops on things you already want.
         if (!blocked && shop.isSignedIn() && budget.take()) {
             step("Checking your Lists")
@@ -160,6 +170,7 @@ class FeedBuilder(
 
         val clusters = profile.clusters.filter { !it.e.muted }
 
+        publish()
         // 4. New in your interests: searches Cartwise writes from your clusters.
         for (c in clusters.take(6)) {
             if (blocked || !budget.take()) break
@@ -172,6 +183,7 @@ class FeedBuilder(
             }
         }
 
+        publish()
         // 5. Goes with what you own: related items on product pages of things you kept.
         for ((k, _) in profile.kept.take(5)) {
             if (blocked || !budget.take()) break
@@ -187,6 +199,7 @@ class FeedBuilder(
             }
         }
 
+        publish()
         // 6. Popular where you shop: best sellers in your top categories.
         val roots = clusters.flatMap { it.roots }.distinct().take(3)
         for (root in roots) {
@@ -206,6 +219,7 @@ class FeedBuilder(
             }
         }
 
+        publish()
         // 7. Wildcard: one category over from your interests.
         val salt = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
         for ((i, c) in clusters.take(3).withIndex()) {
@@ -231,10 +245,10 @@ class FeedBuilder(
     }
 
     /** Runs a refresh right now in the app (not queued), for the refresh button and pull-to-refresh. */
-    fun refreshNow(pages: Int = 20) {
+    fun refreshNow(pages: Int = 10) {
         if (busy.get()) return
         progress.value = Progress(running = true, max = pages, message = "Getting started")
-        com.emotionalleaves.cartwise.Graph.scope.launch { refresh(pages) }
+        com.emotionalleaves.cartwise.Graph.scope.launch { refresh(pages, quick = true) }
     }
 
     private suspend fun restock(now: Long): List<Cand> {

@@ -225,7 +225,7 @@ fun QuizScreen(nav: NavController) {
                         val chosen = Quiz.CHIPS.filter { it.slug in picked }
                         Graph.scope.launch {
                             Graph.taste.applyQuiz(chosen)
-                            Graph.feed.refreshNow(20)
+                            Graph.feed.refreshNow(10)
                         }
                         nav.popBackStack("foryou", inclusive = false)
                     },
