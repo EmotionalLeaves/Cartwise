@@ -133,5 +133,8 @@ Install: open the repo's **Releases → latest** on your phone and tap `Cartwise
 - "Because you kept: …" is now "Like your …" and only appears for a genuinely close match (high similarity and a shared product word); otherwise the card says which of your interests it's for.
 - The on-device model can't load on x86 emulators (MediaPipe ships the ARM library only); on phones it loads normally. Settings → Embedding model shows which model is running and why if not.
 
+## Photo fix (from your photo report)
+- Amazon photo addresses can contain a comma (`…._AC_SR525,525_.jpg`). The reader split photo lists on commas, so those addresses were cut off and failed with HTTP 400. Lists are now split only between entries, and any cut-off address already saved on the phone is rebuilt from its photo ID.
+
 ## Fixing breakage without a rebuild
 When a field goes blank after Amazon changes a page: open `config/selectors.json` in the GitHub app, paste a snippet of the page to an AI and ask it to update the broken selector, **bump `"version"`**, commit. Reopen Cartwise (or Settings → Page-reading rules to reload now). Editing that file doesn't trigger a new APK build.

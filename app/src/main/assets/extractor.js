@@ -40,14 +40,16 @@
     return m ? m[1] : '';
   }
   // Amazon swaps real photos in late; until then <img src> is a grey or transparent placeholder.
-  var IMG_RE = /https?:\/\/[^"'\s,<>]*?\/images\/I\/[A-Za-z0-9+%\-]{6,}\.[^"'\s,<>]*?\.(?:jpe?g|png|webp)/gi;
+  // Amazon photo addresses can contain commas (e.g. "._AC_SR525,525_.jpg"), so commas are allowed inside.
+  var IMG_RE = /https?:\/\/[^"'\s<>]*?\/images\/I\/[A-Za-z0-9+%\-]{6,}\.[^"'\s<>]*?\.(?:jpe?g|png|webp)/gi;
   function goodImg(u) {
     return !!u && u.indexOf('data:') !== 0 && /\/images\/I\//.test(u) && !/\.(gif|svg)(\?|$)/i.test(u) &&
       !/(grey-pixel|transparent-pixel|01MKUOLsA5L|11EIQ5IGqaL)/i.test(u);
   }
   function srcsetList(v) {
     if (!v) return [];
-    return v.split(',').map(function (p) { return p.trim().split(/\s+/)[0]; }).filter(Boolean).reverse();
+    // Split only between candidates ("url 1x, url 2x"), never on commas inside an address.
+    return v.split(/\s*,\s*(?=https?:\/\/|\/\/|\/)/).map(function (p) { return p.trim().split(/\s+/)[0]; }).filter(Boolean).reverse();
   }
   function imgOf(el, scope) {
     var c = [];

@@ -112,6 +112,17 @@ class ExtractTest {
         )
     }
 
+    @Test fun cutOffPhotoAddressesAreRepaired() {
+        assertEquals(
+            "https://m.media-amazon.com/images/I/61MbEvGr+4L._AC_SL500_.jpg",
+            com.emotionalleaves.cartwise.engine.Fmt.image("https://m.media-amazon.com/images/I/61MbEvGr+4L._AC_SR525", 500),
+        )
+        assertEquals(
+            "https://m.media-amazon.com/images/I/61mko9GLp9L._AC_SL500_.jpg",
+            com.emotionalleaves.cartwise.engine.Fmt.image("https://m.media-amazon.com/images/I/61mko9GLp9L._AC_SR525,525_.jpg", 500),
+        )
+    }
+
     @Test fun addToCartGuard() {
         assertTrue(fixture("addtocart_product").getBoolean("clicked"))
         assertFalse(fixture("addtocart_evil").getBoolean("clicked"))

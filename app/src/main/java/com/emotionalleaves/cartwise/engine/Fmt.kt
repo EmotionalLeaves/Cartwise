@@ -43,6 +43,11 @@ object Fmt {
     /** Asks Amazon's image server for a sharp square photo of about [px] pixels. */
     fun image(url: String, px: Int = 500): String {
         if (!url.contains("/images/I/")) return url
+        // Repairs addresses cut off at a comma by older builds ("…/I/61abc._AC_SR525"): rebuild from the photo ID.
+        if (!plainExt.containsMatchIn(url)) {
+            val id = Parse.imageId(url)
+            return if (id.isNotEmpty()) "https://m.media-amazon.com/images/I/$id._AC_SL${px}_.jpg" else url
+        }
         return when {
             sizeToken.containsMatchIn(url) -> sizeToken.replace(url) { "._AC_SL${px}_." + it.groupValues[1] }
             plainExt.containsMatchIn(url) -> plainExt.replace(url) { "._AC_SL${px}_." + it.groupValues[1] }
